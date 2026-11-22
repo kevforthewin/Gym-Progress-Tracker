@@ -106,7 +106,7 @@ export function StartSessionPage() {
                   {station ? (
                     <span className="text-slate-500">{station.name}</span>
                   ) : (
-                    <span className="chip bg-amber-100 text-amber-800">kein Gerät</span>
+                    <span className="chip bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">kein Gerät</span>
                   )}
                 </li>
               ))}

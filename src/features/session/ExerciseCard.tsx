@@ -110,7 +110,7 @@ export function ExerciseCard({ sessionId, station, exercise, prescription, sets 
       <button type="button" className="flex w-full items-start justify-between text-left" onClick={() => setOpen((o) => !o)}>
         <div>
           <h3 className="text-lg font-bold">
-            {done && <span className="text-emerald-600">✓ </span>}
+            {done && <span className="text-emerald-600 dark:text-emerald-400">✓ </span>}
             {exercise.name}
           </h3>
           <p className="text-xs text-slate-500">
@@ -150,7 +150,7 @@ export function ExerciseCard({ sessionId, station, exercise, prescription, sets 
                     <button type="button" className="flex-1 text-left" onClick={() => startEdit(s)}>
                       <span className="mr-2 text-slate-400">{s.isWarmup ? 'W' : idx + 1}.</span>
                       {fmtSet(exercise.type, s)}
-                      {hit && <span className="ml-2 text-emerald-600">✓</span>}
+                      {hit && <span className="ml-2 text-emerald-600 dark:text-emerald-400">✓</span>}
                     </button>
                     <button type="button" className="px-2 text-slate-400" aria-label="Satz löschen" onClick={() => deleteSet(s.id)}>
                       ✕

@@ -81,7 +81,7 @@ export function SettingsPage() {
         </Card>
 
         <Card className="text-sm">
-          <h2 className="mb-2 font-semibold text-red-600">Gefahrenzone</h2>
+          <h2 className="mb-2 font-semibold text-red-600 dark:text-red-400">Gefahrenzone</h2>
           <Button
             variant="danger"
             onClick={async () => {

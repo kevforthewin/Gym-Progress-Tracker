@@ -89,7 +89,7 @@ export function PlanDetailPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  className="text-red-600"
+                  className="text-red-600 dark:text-red-400"
                   onClick={() => confirm(`Tag „${day.name}" löschen? (Trainings bleiben erhalten)`) && deletePlanDay(day.id)}
                 >
                   Tag löschen
@@ -99,7 +99,7 @@ export function PlanDetailPage() {
           );
         })}
 
-        {!exercises.length && <p className="text-sm text-amber-700">Lege zuerst Übungen unter Verwalten → Übungen an.</p>}
+        {!exercises.length && <p className="text-sm text-amber-700 dark:text-amber-300">Lege zuerst Übungen unter Verwalten → Übungen an.</p>}
 
         <form
           className="flex gap-2"
@@ -118,7 +118,7 @@ export function PlanDetailPage() {
 
         <Button
           variant="ghost"
-          className="w-full text-red-600"
+          className="w-full text-red-600 dark:text-red-400"
           onClick={async () => {
             if (!confirm(`Plan „${plan.name}" löschen? Trainings bleiben erhalten.`)) return;
             await deletePlan(plan.id);
@@ -234,7 +234,7 @@ function PdeForm({
       {pde && (
         <Button
           variant="ghost"
-          className="w-full text-red-600"
+          className="w-full text-red-600 dark:text-red-400"
           onClick={async () => {
             await deletePlanDayExercise(pde.id);
             onDone();

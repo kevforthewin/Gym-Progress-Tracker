@@ -176,7 +176,7 @@ export function ActiveSessionPage() {
               Training beenden
             </Button>
           )}
-          <Button variant="ghost" className="text-red-600" onClick={remove}>
+          <Button variant="ghost" className="text-red-600 dark:text-red-400" onClick={remove}>
             Löschen
           </Button>
         </div>

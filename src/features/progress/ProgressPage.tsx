@@ -122,7 +122,7 @@ export function ProgressPage() {
                       <div className="text-right">
                         <p className="font-semibold">{m.fmt(lastV)}</p>
                         {s.length > 1 && (
-                          <p className={`text-xs ${delta >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          <p className={`text-xs ${delta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                             {delta >= 0 ? '▲' : '▼'} {fmtNumber(Math.abs(delta), 1)} %
                           </p>
                         )}

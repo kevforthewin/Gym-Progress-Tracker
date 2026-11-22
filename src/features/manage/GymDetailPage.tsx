@@ -68,7 +68,7 @@ export function GymDetailPage() {
 
       <Button
         variant="ghost"
-        className="mt-6 w-full text-red-600"
+        className="mt-6 w-full text-red-600 dark:text-red-400"
         onClick={async () => {
           if (!confirm(`Gym „${gym.name}" inkl. aller Geräte, Trainings und Sätze endgültig löschen?`)) return;
           await deleteGym(gym.id);
@@ -191,7 +191,7 @@ function StationForm({
       {station && (
         <Button
           variant="ghost"
-          className="w-full text-red-600"
+          className="w-full text-red-600 dark:text-red-400"
           onClick={async () => {
             if (!confirm('Gerät löschen?')) return;
             if (await deleteStation(station.id)) onDone();

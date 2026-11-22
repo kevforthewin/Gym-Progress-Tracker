@@ -7,7 +7,7 @@ export interface Point {
   pr: boolean;
 }
 
-const LINE = '#059669'; // emerald-600
+const LINE = '#34d399'; // emerald-400 (auf dunklem Grund)
 
 function Dot(props: DotProps & { payload?: Point }) {
   const { cx, cy, payload } = props;
@@ -58,7 +58,8 @@ export function ProgressChart({
             labelFormatter={(d: number) => new Date(d).toLocaleDateString('de-DE')}
             formatter={(v: number, _n, item) => [format(v) + ((item.payload as Point).pr ? ' 🏆 PR' : ''), '']}
             separator=""
-            contentStyle={{ borderRadius: 8, fontSize: 13, color: '#0f172a' }}
+            contentStyle={{ borderRadius: 8, fontSize: 13, color: '#f1f5f9', background: '#0f172a', border: '1px solid #334155' }}
+            itemStyle={{ color: '#f1f5f9' }}
           />
           <Line type="monotone" dataKey="value" stroke={LINE} strokeWidth={2} dot={<Dot />} activeDot={{ r: 7 }} isAnimationActive={false} />
         </LineChart>

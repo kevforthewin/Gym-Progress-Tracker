@@ -91,7 +91,7 @@ export function HomePage() {
                 >
                   Training starten
                 </Button>
-                <Link to="/session/start" className="mt-2 block text-center text-sm text-emerald-600">
+                <Link to="/session/start" className="mt-2 block text-center text-sm text-emerald-600 dark:text-emerald-400">
                   Anderen Tag / anderes Gym wählen
                 </Link>
               </>
@@ -130,7 +130,7 @@ export function HomePage() {
                           {fmtDate(s.startedAt)} · {lookup.gyms.get(s.gymId)?.name}
                         </p>
                       </div>
-                      {!s.finishedAt && <span className="chip bg-emerald-100 text-emerald-700">läuft</span>}
+                      {!s.finishedAt && <span className="chip bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">läuft</span>}
                     </Card>
                   </Link>
                 </li>

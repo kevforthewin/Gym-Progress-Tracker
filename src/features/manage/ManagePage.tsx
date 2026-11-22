@@ -73,7 +73,7 @@ function GymsTab() {
               <Link to={`/manage/gym/${g.id}`}>
                 <Card className="flex items-center justify-between py-3">
                   <span className="font-medium">
-                    {g.name} {g.archived && <span className="chip bg-slate-200 text-slate-600">archiviert</span>}
+                    {g.name} {g.archived && <span className="chip bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">archiviert</span>}
                   </span>
                   <span className="text-sm text-slate-500">{g.stations} Geräte ›</span>
                 </Card>
@@ -136,7 +136,7 @@ function ExercisesTab() {
             {editing !== 'new' && (
               <Button
                 variant="ghost"
-                className="mt-2 w-full text-red-600"
+                className="mt-2 w-full text-red-600 dark:text-red-400"
                 onClick={async () => {
                   if (!confirm(`„${editing.name}" löschen?`)) return;
                   if (await deleteExercise(editing.id)) setEditing(null);
