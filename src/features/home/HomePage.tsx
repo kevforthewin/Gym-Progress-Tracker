@@ -9,6 +9,7 @@ import { nextPlanDay } from '../../domain/planRotation';
 import { fmtDate } from '../../domain/units';
 import { useLookup } from '../../hooks/useLookup';
 import { Button, Card, EmptyState, PageHeader } from '../../components/ui';
+import { StatusOverview } from './StatusOverview';
 
 const BACKUP_REMINDER_DAYS = 14;
 
@@ -63,6 +64,7 @@ export function HomePage() {
     <>
       <PageHeader title="Training" />
       <div className="space-y-4">
+        <StatusOverview />
         {data.active && (
           <Card className="border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20">
             <p className="text-sm text-slate-600 dark:text-slate-300">Laufendes Training</p>
@@ -91,9 +93,14 @@ export function HomePage() {
                 >
                   Training starten
                 </Button>
-                <Link to="/session/start" className="mt-2 block text-center text-sm text-emerald-600 dark:text-emerald-400">
-                  Anderen Tag / anderes Gym wählen
-                </Link>
+                <div className="mt-2 flex justify-center gap-4 text-sm">
+                  <Link to="/session/start" className="text-emerald-600 dark:text-emerald-400">
+                    Anderen Tag / Gym
+                  </Link>
+                  <Link to="/quick" className="text-emerald-600 dark:text-emerald-400">
+                    ✍️ Per Text eintragen
+                  </Link>
+                </div>
               </>
             ) : (
               <EmptyState title="Noch kein Trainingsplan">

@@ -1,8 +1,8 @@
-import { ALL_TABLES, db, type TableName } from './schema';
+import { ALL_TABLES, applyExerciseDefaults, db, type TableName } from './schema';
 import { setSetting } from './repositories/settings';
 
 export const BACKUP_FORMAT = 'gym-progress-tracker';
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 
 export interface Backup {
   format: typeof BACKUP_FORMAT;
@@ -41,6 +41,7 @@ export async function importData(data: unknown) {
       if (rows.length) await db.table(t).bulkAdd(rows);
     }
   });
+  await applyExerciseDefaults();
 }
 
 export async function downloadBackup() {

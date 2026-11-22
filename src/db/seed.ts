@@ -1,4 +1,4 @@
-import { db, newId } from './schema';
+import { applyExerciseDefaults, db, newId } from './schema';
 import type { Exercise, ExerciseType, PlanDayExercise, Station } from './types';
 import { setSetting } from './repositories/settings';
 
@@ -65,4 +65,5 @@ export async function seedExampleData() {
     await setSetting('activePlanId', planId);
     await setSetting('seeded', true);
   });
+  await applyExerciseDefaults();
 }

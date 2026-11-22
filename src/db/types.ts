@@ -14,6 +14,8 @@ export interface Exercise {
   name: string;
   type: ExerciseType;
   muscleGroup?: string;
+  /** Übungen mit gleicher Gruppe sind im Training gegeneinander tauschbar (z. B. "Hintere Schulter"). */
+  alternativeGroup?: string;
   notes?: string;
   createdAt: number;
 }
@@ -32,6 +34,8 @@ export interface Station {
   settingsNote?: string;
   /** Freie Hinweise/Historie zum Gerät. */
   notes?: string;
+  /** Tatsächlich einstellbare Gewichte (kg, aufsteigend). Wenn gesetzt, springen Ziel und Stepper auf diese Werte. */
+  weightSteps?: number[];
   createdAt: number;
 }
 
@@ -69,6 +73,8 @@ export interface Session {
   finishedAt?: number;
   bodyweightKg?: number;
   notes?: string;
+  /** Getauschte Übungen: Schlüssel = Plan-Einheit (pde-IDs), Wert = verwendete Station(en). */
+  swaps?: Record<string, string[]>;
 }
 
 export interface SetEntry {
@@ -83,6 +89,30 @@ export interface SetEntry {
   durationSec?: number;
   distanceM?: number;
   isWarmup: boolean;
+  /** Satz zählt nicht fürs Ziel/Charts (bleibt aber in der Historie und im Volumen). */
+  excluded?: boolean;
+  excludeReason?: ExcludeReason;
+  createdAt: number;
+}
+
+export type ExcludeReason = 'unsauber' | 'ersatz' | 'sonstiges';
+
+export interface BodyweightEntry {
+  id: string;
+  date: string; // ISO yyyy-mm-dd
+  weightKg: number;
+  createdAt: number;
+}
+
+export interface CardioEntry {
+  id: string;
+  date: string; // ISO yyyy-mm-dd
+  kind: string; // z. B. "Laufband", "Zone 2"
+  durationMin: number;
+  distanceKm?: number;
+  avgHr?: number;
+  gymId?: string;
+  note?: string;
   createdAt: number;
 }
 

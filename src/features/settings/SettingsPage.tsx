@@ -118,6 +118,8 @@ export function SettingsPage() {
             <li>Schaffst du in allen Sätzen das obere Ende, steigt das Gewicht um den Gewichtssprung des Geräts und du startest wieder unten.</li>
             <li>Sonst bleibt das Gewicht und das Ziel ist +1 Wdh. pro Satz.</li>
             <li>3 Trainings ohne Verbesserung → Deload um ca. 10 %.</li>
+            <li>Sind am Gerät Gewichtsstufen hinterlegt, springt das Ziel auf die nächste echte Stufe.</li>
+            <li>Sätze mit „unsauber“, „Ersatz“ oder „zählt nicht“ bleiben in der Historie, zählen aber nicht fürs Ziel.</li>
             <li>Zeit/Distanz: +5 % gegenüber dem letzten Mal. Aufwärmsätze zählen nie mit.</li>
             <li>Historie und Ziel gelten je Gerät und Gym.</li>
           </ul>

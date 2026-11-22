@@ -4,14 +4,21 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { db } from '../../db/schema';
 import { deleteSession, finishSession, setsForSession, updateSession } from '../../db/repositories/sessions';
 import { createStation } from '../../db/repositories/stations';
+import { bodyweightOn, isoDate, upsertBodyweight } from '../../db/repositories/body';
 import type { PlanDayExercise, SetEntry, Station } from '../../db/types';
 import type { Prescription } from '../../domain/progression';
 import { fmtDate, parseNum } from '../../domain/units';
 import { useLookup } from '../../hooks/useLookup';
 import { Button, Card, EmptyState, Modal, PageHeader } from '../../components/ui';
-import { ExerciseCard } from './ExerciseCard';
+import { ExerciseCard, type SwapOption, type UnitMember } from './ExerciseCard';
+import { groupPlanUnits, groupStations } from './units';
 
 export const DEFAULT_PRESCRIPTION: Prescription = { sets: 3, repMin: 8, repMax: 12 };
+
+const prescriptionOf = (pde?: PlanDayExercise): Prescription =>
+  pde
+    ? { sets: pde.sets, repMin: pde.repMin, repMax: pde.repMax, targetDurationSec: pde.targetDurationSec, targetDistanceM: pde.targetDistanceM }
+    : DEFAULT_PRESCRIPTION;
 
 export function ActiveSessionPage() {
   const { id = '' } = useParams();
@@ -23,14 +30,15 @@ export function ActiveSessionPage() {
   const data = useLiveQuery(async () => {
     const session = await db.sessions.get(id);
     if (!session) return { session: undefined };
-    const [sets, pdes, gymStations] = await Promise.all([
+    const [sets, pdes, gymStations, bodyweight] = await Promise.all([
       setsForSession(id),
       session.planDayId
         ? db.planDayExercises.where('planDayId').equals(session.planDayId).sortBy('order')
         : Promise.resolve([] as PlanDayExercise[]),
       db.stations.where('gymId').equals(session.gymId).toArray(),
+      bodyweightOn(isoDate(session.startedAt)),
     ]);
-    return { session, sets, pdes, gymStations };
+    return { session, sets, pdes, gymStations, bodyweight };
   }, [id]);
 
   if (!data || !lookup) return null;
@@ -42,7 +50,13 @@ export function ActiveSessionPage() {
         <EmptyState title="Training nicht gefunden." />
       </>
     );
-  const { sets, pdes, gymStations } = data as { sets: SetEntry[]; pdes: PlanDayExercise[]; gymStations: Station[] };
+  const { sets, pdes, gymStations, bodyweight } = data as {
+    sets: SetEntry[];
+    pdes: PlanDayExercise[];
+    gymStations: Station[];
+    bodyweight?: number;
+  };
+  const exercises = lookup.exercises;
 
   const setsByStation = new Map<string, SetEntry[]>();
   for (const s of sets) setsByStation.set(s.stationId, [...(setsByStation.get(s.stationId) ?? []), s]);
@@ -50,15 +64,50 @@ export function ActiveSessionPage() {
   const stationForExercise = (exerciseId: string) =>
     gymStations.filter((s) => s.exerciseId === exerciseId).sort((a, b) => b.createdAt - a.createdAt)[0];
 
-  const allPlanItems = pdes.map((pde) => ({ pde, station: stationForExercise(pde.exerciseId) }));
-  // Pläne sind gym-übergreifend: Übungen ohne Gerät in diesem Gym werden ausgeblendet.
-  const planItems = allPlanItems.filter((i) => i.station);
-  const unmapped = allPlanItems.filter((i) => !i.station);
-  const plannedStationIds = new Set(planItems.map((i) => i.station?.id).filter(Boolean));
+  const memberOf = (station: Station, pde?: PlanDayExercise): UnitMember | null => {
+    const exercise = exercises.get(station.exerciseId);
+    return exercise ? { station, exercise, prescription: prescriptionOf(pde), sets: setsByStation.get(station.id) ?? [] } : null;
+  };
+
+  // ---- Plan-Einheiten (inkl. Tausch) ----
+  const swaps = session.swaps ?? {};
+  const units = groupPlanUnits(pdes, exercises).map((u) => {
+    const swapIds = swaps[u.key];
+    const stations = swapIds
+      ? swapIds.map((sid) => lookup.stations.get(sid)).filter((s): s is Station => !!s)
+      : u.pdes.map((p) => stationForExercise(p.exerciseId)).filter((s): s is Station => !!s);
+    const members = stations.map((st, i) => memberOf(st, u.pdes[i] ?? u.pdes[0])).filter((m): m is UnitMember => !!m);
+    const title = swapIds && members[0] ? groupStations(stations, exercises)[0]?.base ?? u.base : u.base;
+    return { ...u, members, swapped: !!swapIds, title };
+  });
+  const shown = units.filter((u) => u.members.length > 0);
+  const unmapped = units.filter((u) => u.members.length === 0);
+  const usedStationIds = new Set(shown.flatMap((u) => u.members.map((m) => m.station.id)));
+
+  // ---- Extras: Stationen mit Sätzen oder manuell hinzugefügt ----
   const extraStations = [...new Set([...setsByStation.keys(), ...extraIds])]
-    .filter((sid) => !plannedStationIds.has(sid))
+    .filter((sid) => !usedStationIds.has(sid))
     .map((sid) => lookup.stations.get(sid))
     .filter((s): s is Station => !!s);
+  const extraGroups = groupStations(extraStations, exercises);
+
+  const alternativesFor = (u: (typeof units)[number]): SwapOption[] => {
+    const exIds = [...u.pdes.map((p) => p.exerciseId), ...u.members.map((m) => m.exercise.id)];
+    const group = exIds.map((x) => exercises.get(x)?.alternativeGroup).find(Boolean);
+    if (!group) return [];
+    const candidates = gymStations.filter((st) => exercises.get(st.exerciseId)?.alternativeGroup === group);
+    return groupStations(candidates, exercises)
+      .filter((g) => g.base !== u.title && g.base !== u.base)
+      .map((g) => ({ key: g.base, title: g.base, stationIds: g.stations.map((s) => s.id) }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  };
+
+  const doSwap = (unitKey: string, opt: SwapOption | null) => {
+    const next = { ...swaps };
+    if (opt) next[unitKey] = opt.stationIds;
+    else delete next[unitKey];
+    return updateSession(session.id, { swaps: next });
+  };
 
   const dayName = lookup.planDays.get(session.planDayId ?? '')?.name ?? 'Freies Training';
   const gym = lookup.gyms.get(session.gymId);
@@ -73,14 +122,11 @@ export function ActiveSessionPage() {
     nav('/', { replace: true });
   };
 
-  const prescriptionOf = (pde?: PlanDayExercise): Prescription =>
-    pde
-      ? { sets: pde.sets, repMin: pde.repMin, repMax: pde.repMax, targetDurationSec: pde.targetDurationSec, targetDistanceM: pde.targetDistanceM }
-      : DEFAULT_PRESCRIPTION;
-
-  const available = gymStations
-    .filter((s) => !plannedStationIds.has(s.id) && !extraStations.some((e) => e.id === s.id))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const shownIds = new Set([...usedStationIds, ...extraStations.map((s) => s.id)]);
+  const available = groupStations(
+    gymStations.filter((s) => !shownIds.has(s.id)),
+    exercises,
+  ).sort((a, b) => a.base.localeCompare(b.base));
 
   return (
     <>
@@ -102,33 +148,21 @@ export function ActiveSessionPage() {
       </p>
 
       <div className="space-y-3">
-        {planItems.map(({ pde, station }) => {
-          const ex = lookup.exercises.get(pde.exerciseId);
-          if (!ex || !station) return null;
-          return (
-            <ExerciseCard
-              key={pde.id}
-              sessionId={session.id}
-              station={station}
-              exercise={ex}
-              prescription={prescriptionOf(pde)}
-              sets={setsByStation.get(station.id) ?? []}
-            />
-          );
-        })}
+        {shown.map((u) => (
+          <ExerciseCard
+            key={u.key}
+            sessionId={session.id}
+            title={u.title}
+            members={u.members}
+            alternatives={alternativesFor(u)}
+            swapped={u.swapped}
+            onSwap={(opt) => doSwap(u.key, opt)}
+          />
+        ))}
 
-        {extraStations.map((st) => {
-          const ex = lookup.exercises.get(st.exerciseId);
-          return ex ? (
-            <ExerciseCard
-              key={st.id}
-              sessionId={session.id}
-              station={st}
-              exercise={ex}
-              prescription={DEFAULT_PRESCRIPTION}
-              sets={setsByStation.get(st.id) ?? []}
-            />
-          ) : null;
+        {extraGroups.map((g) => {
+          const members = g.stations.map((st) => memberOf(st)).filter((m): m is UnitMember => !!m);
+          return members.length ? <ExerciseCard key={g.base} sessionId={session.id} title={g.base} members={members} /> : null;
         })}
 
         <Button variant="secondary" className="w-full" onClick={() => setAddOpen(true)}>
@@ -141,24 +175,24 @@ export function ActiveSessionPage() {
               {unmapped.length} Plan-Übung(en) gibt es in {gym?.name} nicht
             </summary>
             <ul className="mt-1 divide-y divide-slate-200 dark:divide-slate-700">
-              {unmapped.map(({ pde }) => {
-                const ex = lookup.exercises.get(pde.exerciseId);
-                if (!ex) return null;
-                return (
-                  <li key={pde.id} className="flex items-center justify-between py-1.5">
-                    <span>{ex.name}</span>
-                    <Button
-                      variant="ghost"
-                      className="min-h-9 px-2 text-sm"
-                      onClick={() =>
-                        createStation({ gymId: session.gymId, exerciseId: ex.id, name: ex.name, weightIncrement: ex.type === 'time_distance' ? 0 : 2.5 })
+              {unmapped.map((u) => (
+                <li key={u.key} className="flex items-center justify-between py-1.5">
+                  <span>{u.base}</span>
+                  <Button
+                    variant="ghost"
+                    className="min-h-9 px-2 text-sm"
+                    onClick={async () => {
+                      for (const p of u.pdes) {
+                        const ex = exercises.get(p.exerciseId);
+                        if (ex)
+                          await createStation({ gymId: session.gymId, exerciseId: ex.id, name: ex.name, weightIncrement: ex.type === 'time_distance' ? 0 : 2.5 });
                       }
-                    >
-                      Hier anlegen
-                    </Button>
-                  </li>
-                );
-              })}
+                    }}
+                  >
+                    Hier anlegen
+                  </Button>
+                </li>
+              ))}
             </ul>
           </details>
         )}
@@ -167,10 +201,11 @@ export function ActiveSessionPage() {
           <label className="block">
             <span className="label">Körpergewicht (kg, optional)</span>
             <input
+              key={bodyweight ?? 'none'}
               className="input"
               inputMode="decimal"
-              defaultValue={session.bodyweightKg ?? ''}
-              onBlur={(e) => updateSession(session.id, { bodyweightKg: parseNum(e.target.value) })}
+              defaultValue={bodyweight ?? ''}
+              onBlur={(e) => upsertBodyweight(isoDate(session.startedAt), parseNum(e.target.value))}
             />
           </label>
           <label className="block">
@@ -205,18 +240,19 @@ export function ActiveSessionPage() {
           </EmptyState>
         ) : (
           <ul className="divide-y divide-slate-200 dark:divide-slate-700">
-            {available.map((s) => (
-              <li key={s.id}>
+            {available.map((g) => (
+              <li key={g.base}>
                 <button
                   type="button"
                   className="w-full py-3 text-left"
                   onClick={() => {
-                    setExtraIds((x) => [...x, s.id]);
+                    setExtraIds((x) => [...x, ...g.stations.map((s) => s.id)]);
                     setAddOpen(false);
                   }}
                 >
-                  {s.name}
-                  <span className="ml-2 text-xs text-slate-500">{lookup.exercises.get(s.exerciseId)?.muscleGroup}</span>
+                  {g.base}
+                  {g.stations.length === 2 && <span className="ml-1 text-xs text-slate-500">(L/R)</span>}
+                  <span className="ml-2 text-xs text-slate-500">{exercises.get(g.stations[0].exerciseId)?.muscleGroup}</span>
                 </button>
               </li>
             ))}

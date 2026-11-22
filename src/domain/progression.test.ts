@@ -77,6 +77,24 @@ describe('computeTarget – Gewicht × Reps', () => {
   });
 });
 
+describe('computeTarget – Gewichtsstufen', () => {
+  const steps = [29.8, 32, 34.3, 36.6, 38.9];
+  it('Steigerung springt auf die nächste echte Stufe', () => {
+    const t = computeTarget(base([s(34.3, 12, 12, 12)], { steps }));
+    expect(t.sets[0].weightKg).toBe(36.6);
+    expect(t.message).toContain('+2,3 kg');
+  });
+  it('Deload auf Stufe <= 90 %', () => {
+    const t = computeTarget(base([s(38.9, 9, 9, 9), s(38.9, 9, 9, 9), s(38.9, 8, 9, 9)], { steps }));
+    expect(t.reason).toBe('deload');
+    expect(t.sets[0].weightKg).toBe(34.3);
+  });
+  it('über der höchsten Stufe -> Inkrement', () => {
+    const t = computeTarget(base([s(38.9, 12, 12, 12)], { steps }));
+    expect(t.sets[0].weightKg).toBe(41.4);
+  });
+});
+
 describe('computeTarget – Körpergewicht', () => {
   const bw = (h: WorkSet[][]) => base(h, { type: 'bodyweight', prescription: { sets: 3, repMin: 5, repMax: 10 } });
 

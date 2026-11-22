@@ -40,7 +40,7 @@ export const setsForSession = async (sessionId: string) =>
 /** Alle Sätze einer Station, gruppiert nach Session (älteste zuerst). */
 export async function stationSessions(
   stationId: string,
-  opts: { excludeSessionId?: string; includeWarmup?: boolean } = {},
+  opts: { excludeSessionId?: string; includeWarmup?: boolean; includeExcluded?: boolean } = {},
 ): Promise<{ session: Session; sets: SetEntry[] }[]> {
   const sets = await db.sets
     .where('[stationId+createdAt]')
@@ -50,6 +50,7 @@ export async function stationSessions(
   for (const s of sets) {
     if (s.sessionId === opts.excludeSessionId) continue;
     if (s.isWarmup && !opts.includeWarmup) continue;
+    if (s.excluded && !opts.includeExcluded) continue;
     const arr = bySession.get(s.sessionId) ?? [];
     arr.push(s);
     bySession.set(s.sessionId, arr);

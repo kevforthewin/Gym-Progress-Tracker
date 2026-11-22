@@ -110,6 +110,14 @@ function StationForm({
   const [start, setStart] = useState(station?.startWeight !== undefined ? String(station.startWeight) : '');
   const [note, setNote] = useState(station?.settingsNote ?? '');
   const [notes, setNotes] = useState(station?.notes ?? '');
+  const [steps, setSteps] = useState((station?.weightSteps ?? []).map((x) => String(x).replace('.', ',')).join('; '));
+  const parsedSteps = parseSteps(steps);
+  const fromHistory = async () => {
+    if (!station) return;
+    const ws = (await db.sets.where('stationId').equals(station.id).toArray()).map((s) => s.weightKg ?? 0).filter((w) => w > 0);
+    const merged = [...new Set([...parsedSteps, ...ws])].sort((a, b) => a - b);
+    setSteps(merged.map((x) => String(x).replace('.', ',')).join('; '));
+  };
 
   if (exerciseId === NEW && !station) {
     return (
@@ -144,6 +152,7 @@ function StationForm({
       startWeight: parseNum(start),
       settingsNote: note.trim() || undefined,
       notes: notes.trim() || undefined,
+      weightSteps: parsedSteps.length ? parsedSteps : undefined,
     };
     if (station) await updateStation(station.id, values);
     else await createStation({ gymId, ...values });
@@ -184,6 +193,27 @@ function StationForm({
           </Field>
         </div>
       )}
+      {!endurance && (
+        <div>
+          <Field label="Gewichtsstufen am Gerät (optional)">
+            <textarea
+              className="input"
+              rows={2}
+              value={steps}
+              onChange={(e) => setSteps(e.target.value)}
+              placeholder="z. B. 29,8; 32; 34,3; 36,6; 38,9"
+            />
+          </Field>
+          <div className="mt-1 flex items-center justify-between gap-2 text-xs text-slate-500">
+            <span>{parsedSteps.length ? `${parsedSteps.length} Stufen – Ziel und +/− springen auf diese Werte` : 'Leer = fester Gewichtssprung'}</span>
+            {station && (
+              <button type="button" className="shrink-0 font-semibold text-emerald-600 dark:text-emerald-400" onClick={fromHistory}>
+                Aus Historie übernehmen
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       <Field label="Einstellungen (Sitzhöhe, Polster …)">
         <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="z. B. Sitz 4, Lehne 2" />
       </Field>
@@ -208,4 +238,13 @@ function StationForm({
       )}
     </div>
   );
+}
+
+/** "29,8; 32 34,3" -> [29.8, 32, 34.3] (Komma = Dezimaltrennzeichen, Trennung mit ; | oder Leerzeichen). */
+export function parseSteps(text: string): number[] {
+  const nums = text
+    .split(/[;|\s]+/)
+    .map((t) => Number(t.replace(',', '.')))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return [...new Set(nums)].sort((a, b) => a - b);
 }

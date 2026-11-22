@@ -163,3 +163,35 @@ describe('mergeAppBackup', () => {
     expect(await mergeAppBackup(backup)).toBe(gymCount);
   });
 });
+
+describe('unscharfe Zuordnung', () => {
+  it('Wortreihenfolge/Abkürzungen automatisch, Teilnamen als Vorschlag', async () => {
+    const gym = await createGym('IRON & Soul');
+    for (const n of ['Kurzhantel Incline Curl', 'Schulterdrücken Kurzhantel', 'Trizepsmaschine Matrix']) {
+      const ex = await createExercise({ name: n, type: 'weight_reps' });
+      await createStation({ gymId: gym.id, exerciseId: ex.id, name: n, weightIncrement: 2.5 });
+    }
+    const a = await analyzeImport(parseSessionsFile({ gym: 'IRON & Soul', exercises: [
+      { exercise: 'Incline curls kurzhantel', sets: [{ weight_kg: 12.5, reps: 10 }] },
+      { exercise: 'KH Schulterdrücken', sets: [{ weight_kg: 15, reps: 12 }] },
+      { exercise: 'Trizepsmaschine', sets: [{ weight_kg: 79, reps: 12, unsauber: true }] },
+    ] }));
+    const by = Object.fromEntries(a.exercises.map((e) => [e.label, e]));
+    expect(by['Incline curls kurzhantel'].stationId).toBeDefined();
+    expect(by['KH Schulterdrücken'].stationId).toBeDefined();
+    expect(by['Trizepsmaschine'].stationId).toBeUndefined();
+    expect(by['Trizepsmaschine'].suggestionId).toBeDefined();
+  });
+
+  it('kein Vorschlag für Varianten (einarmig, Seiten) auf die Grundübung', async () => {
+    const gym = await createGym('IRON');
+    const ex = await createExercise({ name: 'Reverse Butterfly', type: 'weight_reps' });
+    await createStation({ gymId: gym.id, exerciseId: ex.id, name: 'Reverse Butterfly', weightIncrement: 2.5 });
+    const a = await analyzeImport(parseSessionsFile({ gym: 'IRON', exercises: [
+      { exercise: 'Reverse Butterfly einarmig', sets: [{ weight_kg: 54, reps: 8, side: 'L' }] },
+      { exercise: 'Reverse', sets: [{ weight_kg: 54, reps: 8 }] },
+    ] }));
+    expect(a.exercises.find((e) => e.label.startsWith('Reverse Butterfly einarmig'))?.suggestionId).toBeUndefined();
+    expect(a.exercises.find((e) => e.label === 'Reverse')?.suggestionId).toBeDefined();
+  });
+});

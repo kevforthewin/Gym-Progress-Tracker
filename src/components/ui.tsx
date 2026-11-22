@@ -98,6 +98,7 @@ export function Stepper({
   value,
   onChange,
   step,
+  steps,
   min = 0,
   label,
   suffix,
@@ -105,11 +106,21 @@ export function Stepper({
   value: number | undefined;
   onChange: (v: number | undefined) => void;
   step: number;
+  /** Optionale feste Werte (z. B. Gewichtsstufen des Geräts). */
+  steps?: number[];
   min?: number;
   label: string;
   suffix?: string;
 }) {
-  const bump = (d: number) => onChange(Math.max(min, Math.round(((value ?? 0) + d) * 1000) / 1000));
+  const bump = (d: number) => {
+    const cur = value ?? 0;
+    if (steps?.length) {
+      const sorted = [...steps].sort((a, b) => a - b);
+      const next = d > 0 ? sorted.find((x) => x > cur + 1e-9) : [...sorted].reverse().find((x) => x < cur - 1e-9);
+      if (next !== undefined) return onChange(next);
+    }
+    onChange(Math.max(min, Math.round((cur + d) * 1000) / 1000));
+  };
   return (
     <div className="flex-1">
       <span className="label text-center">{label}</span>

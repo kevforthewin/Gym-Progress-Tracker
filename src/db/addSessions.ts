@@ -6,15 +6,18 @@
  *    (auch als Array oder einzelnes Session-Objekt; deutsche Feldnamen wie datum/studio/uebung/gewicht/wdh gehen auch)
  *  - App-Backup (format "gym-progress-tracker"): nur fehlende Datensätze werden ergänzt.
  */
-import { ALL_TABLES, db, newId } from './schema';
+import { ALL_TABLES, applyExerciseDefaults, db, newId } from './schema';
 import { BACKUP_FORMAT, validateBackup } from './backup';
 import { getSetting, setSetting } from './repositories/settings';
-import type { Exercise, Gym, PlanDay, PlanDayExercise, Session, SetEntry, Station } from './types';
+import type { ExcludeReason, Exercise, Gym, PlanDay, PlanDayExercise, Session, SetEntry, Station } from './types';
+import type { ParsedExercise } from '../domain/textParser';
 
 export interface ImportSet {
   weightKg: number;
   reps: number;
   warmup: boolean;
+  excluded?: boolean;
+  excludeReason?: ExcludeReason;
 }
 export interface ImportExercise {
   name: string;
@@ -109,7 +112,13 @@ export function parseSessionsFile(data: unknown): ImportSession[] {
         const side = toSide(st.side) ?? exSide;
         const k = side ?? '-';
         if (!bySide.has(k)) bySide.set(k, { name, side, sets: [] });
-        bySide.get(k)!.sets.push({ weightKg, reps, warmup: st.warmup === true || st.aufwaermen === true });
+        const excluded = st.excluded === true || st.counts_as_reference === false || st.unsauber === true;
+        bySide.get(k)!.sets.push({
+          weightKg,
+          reps,
+          warmup: st.warmup === true || st.aufwaermen === true,
+          ...(excluded ? { excluded: true, excludeReason: st.unsauber === true ? 'unsauber' : 'sonstiges' } : {}),
+        });
       }
       exercises.push(...bySide.values());
     }
@@ -140,6 +149,8 @@ export interface ExerciseMatch {
   gymName: string;
   label: string;
   stationId?: string;
+  /** Unsicherer Vorschlag, wenn keine sichere Zuordnung gefunden wurde. */
+  suggestionId?: string;
   allZeroWeight: boolean;
   /** Plantage der Trainings, in denen die Übung vorkommt. */
   planDayIds: string[];
@@ -179,8 +190,41 @@ function matchStation(stations: Station[], exercises: Map<string, Exercise>, lab
   if (alias && stations.some((s) => s.id === alias)) return alias;
   return (
     stations.find((s) => norm(s.name) === n)?.id ??
-    stations.find((s) => norm(exercises.get(s.exerciseId)?.name ?? '') === n)?.id
+    stations.find((s) => norm(exercises.get(s.exerciseId)?.name ?? '') === n)?.id ??
+    // gleiche Wörter in anderer Reihenfolge / Abkürzungen (KH, LH)
+    stations.find((s) => sameTokens(tokens(label), tokens(s.name)))?.id
   );
+}
+
+const SYNONYMS: Record<string, string> = { kh: 'kurzhantel', lh: 'langhantel', l: 'links', r: 'rechts', maschine: '', machine: '' };
+/** Wörter, vereinfacht (Plural-s/-n weg, Synonyme). */
+export function tokens(s: string): string[] {
+  return s
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .map((t) => SYNONYMS[t] ?? t)
+    .map((t) => (t.length > 4 ? t.replace(/(en|s|n)$/, '') : t))
+    .filter(Boolean);
+}
+const sameTokens = (a: string[], b: string[]) => a.length > 0 && a.length === b.length && a.every((t) => b.includes(t));
+
+/** Bester unscharfer Vorschlag (eindeutig), z. B. "Trizepsmaschine" -> "Trizepsmaschine Matrix". */
+function suggestStation(stations: Station[], label: string, lastUsed: Map<string, number>): string | undefined {
+  const q = tokens(label);
+  if (!q.length) return undefined;
+  const side = (t: string[]) => (t.includes('links') ? 'L' : t.includes('rechts') ? 'R' : '');
+  // Nur vorschlagen, wenn ALLE eingegebenen Wörter im Gerätenamen stecken und die Seite passt.
+  const scored = stations
+    .map((s) => {
+      const t = tokens(s.name);
+      const allIn = q.every((x) => t.includes(x));
+      return { id: s.id, ok: allIn && side(q) === side(t), score: q.length / new Set([...q, ...t]).size, used: lastUsed.get(s.id) ?? 0 };
+    })
+    .filter((x) => x.ok)
+    // bester Treffer; bei Gleichstand das zuletzt benutzte Gerät
+    .sort((a, b) => b.score - a.score || b.used - a.used);
+  if (!scored.length || (scored[1] && scored[1].score === scored[0].score && scored[1].used === scored[0].used)) return undefined;
+  return scored[0].id;
 }
 
 async function findPlanDay(workoutType: string | undefined, days: PlanDay[], activePlanId?: string) {
@@ -202,6 +246,10 @@ export async function analyzeImport(sessions: ImportSession[]): Promise<ImportAn
     db.planDayExercises.toArray(),
   ]);
   const exMap = new Map(exercises.map((e) => [e.id, e]));
+  const lastUsed = new Map<string, number>();
+  await db.sets.each((x) => {
+    if ((lastUsed.get(x.stationId) ?? 0) < x.createdAt) lastUsed.set(x.stationId, x.createdAt);
+  });
   const planDayOf = new Map<string, string | undefined>();
   for (const s of sessions) planDayOf.set(s.key, await findPlanDay(s.workoutType, days, activePlanId));
 
@@ -228,10 +276,12 @@ export async function analyzeImport(sessions: ImportSession[]): Promise<ImportAn
         if (dayId && !prev.planDayIds.includes(dayId)) prev.planDayIds.push(dayId);
         continue;
       }
+      const stationId = gymId ? matchStation(gymStations, exMap, label, aliases ?? {}, gymId) : undefined;
       exMatches.set(k, {
         gymName: s.gymName,
         label,
-        stationId: gymId ? matchStation(gymStations, exMap, label, aliases ?? {}, gymId) : undefined,
+        stationId,
+        suggestionId: !stationId && gymId ? suggestStation(gymStations, label, lastUsed) : undefined,
         allZeroWeight: zero,
         planDayIds: dayId ? [dayId] : [],
         inPlan: false,
@@ -392,6 +442,7 @@ export async function applyImport(sessions: ImportSession[], analysis: ImportAna
             weightKg: x.weightKg,
             reps: x.reps,
             isWarmup: x.warmup,
+            ...(x.excluded ? { excluded: true, excludeReason: x.excludeReason ?? 'sonstiges' } : {}),
             createdAt: t + n++ * 60_000,
           }),
         );
@@ -403,6 +454,7 @@ export async function applyImport(sessions: ImportSession[], analysis: ImportAna
       result.sets += sets.length;
     }
   });
+  await applyExerciseDefaults();
   return result;
 }
 
@@ -421,5 +473,14 @@ export async function mergeAppBackup(data: unknown): Promise<number> {
       added += fresh.length;
     }
   });
+  await applyExerciseDefaults();
   return added;
+}
+
+/** Schnelleingabe -> ein Training im Import-Format. */
+export function textToImportSession(
+  exercises: ParsedExercise[],
+  opts: { gymName: string; date: string; workoutType?: string },
+): ImportSession {
+  return { key: 'quick', date: opts.date, gymName: opts.gymName, workoutType: opts.workoutType, exercises };
 }

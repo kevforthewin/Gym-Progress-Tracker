@@ -7,7 +7,7 @@ import type { ExerciseType } from '../../db/types';
 import { personalRecords, prDates, sessionMetrics, type PrKey } from '../../domain/metrics';
 import { fmtDate, fmtDistance, fmtDuration, fmtKg, fmtNumber } from '../../domain/units';
 import { useLookup } from '../../hooks/useLookup';
-import { Card, EmptyState, PageHeader, Tabs } from '../../components/ui';
+import { Card, EmptyState, Tabs } from '../../components/ui';
 import { ProgressChart } from './ProgressChart';
 import { fmtSet } from '../session/format';
 
@@ -28,7 +28,7 @@ const METRICS: Record<ExerciseType, { key: PrKey; label: string; unit?: string; 
   ],
 };
 
-export function ProgressPage() {
+export function ExerciseProgress() {
   const lookup = useLookup();
   const [params, setParams] = useSearchParams();
   const gymId = params.get('gym') ?? '';
@@ -60,7 +60,8 @@ export function ProgressPage() {
     return rows.filter((r) => r.series.length > 0).sort((a, b) => a.station.name.localeCompare(b.station.name));
   }, [gymId]);
 
-  const detail = useLiveQuery(async () => (stationId ? stationSessions(stationId) : undefined), [stationId]);
+  // Inkl. "zählt nicht"-Sätzen (werden in der Tabelle durchgestrichen gezeigt, aber nicht ausgewertet)
+  const detail = useLiveQuery(async () => (stationId ? stationSessions(stationId, { includeExcluded: true }) : undefined), [stationId]);
   const station = lookup?.stations.get(stationId);
   const exercise = station && lookup?.exercises.get(station.exerciseId);
   const metrics = exercise ? METRICS[exercise.type] : [];
@@ -69,7 +70,14 @@ export function ProgressPage() {
     if (metrics.length && !metrics.some((m) => m.key === metricKey)) setMetricKey(metrics[0].key);
   }, [metrics, metricKey]);
 
-  const series = useMemo(() => (detail ?? []).map((g) => sessionMetrics(g.session.startedAt, g.sets)), [detail]);
+  const counted = useMemo(
+    () => (detail ?? []).map((g) => ({ ...g, counted: g.sets.filter((s) => !s.excluded) })),
+    [detail],
+  );
+  const series = useMemo(
+    () => counted.filter((g) => g.counted.length).map((g) => sessionMetrics(g.session.startedAt, g.counted)),
+    [counted],
+  );
   const metric = metrics.find((m) => m.key === metricKey) ?? metrics[0];
 
   if (!lookup) return null;
@@ -78,7 +86,6 @@ export function ProgressPage() {
 
   return (
     <>
-      <PageHeader title="Fortschritt" />
       <div className="mb-4 flex gap-2">
         <select className="input" value={gymId} onChange={(e) => set('gym', e.target.value)} aria-label="Gym">
           {[...lookup.gyms.values()].map((g) => (
@@ -186,11 +193,20 @@ export function ProgressPage() {
                 </tr>
               </thead>
               <tbody>
-                {[...(detail ?? [])].reverse().map((g, i, arr) => (
+                {[...counted].reverse().map((g) => (
                   <tr key={g.session.id} className="border-t border-slate-200 align-top dark:border-slate-700">
                     <td className="whitespace-nowrap py-1.5 pr-2">{fmtDate(g.session.startedAt)}</td>
-                    <td className="py-1.5 pr-2">{g.sets.map((s) => fmtSet(exercise.type, s)).join(', ')}</td>
-                    <td className="py-1.5 text-right font-medium">{metric.fmt(series[arr.length - 1 - i][metric.key])}</td>
+                    <td className="py-1.5 pr-2">
+                      {g.sets.map((s, i) => (
+                        <span key={s.id} className={s.excluded ? 'text-slate-400 line-through' : ''}>
+                          {i > 0 && ', '}
+                          {fmtSet(exercise.type, s)}
+                        </span>
+                      ))}
+                    </td>
+                    <td className="py-1.5 text-right font-medium">
+                      {g.counted.length ? metric.fmt(sessionMetrics(g.session.startedAt, g.counted)[metric.key]) : '–'}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -44,7 +44,9 @@ export function AddSessionsDialog({ sessions, onClose, onDone }: Props) {
         exercises: Object.fromEntries(
           a.exercises.map((e) => [
             exKey(e.gymName, e.label),
-            e.stationId ? { kind: 'station', stationId: e.stationId } : ({ kind: 'new' } as ExerciseChoice),
+            e.stationId || e.suggestionId
+              ? { kind: 'station', stationId: (e.stationId ?? e.suggestionId)! }
+              : ({ kind: 'new' } as ExerciseChoice),
           ]),
         ),
         sessions: Object.fromEntries(a.sessions.map((s) => [s.key, { include: !s.duplicate, date: s.date, planDayId: s.planDayId }])),
@@ -134,6 +136,7 @@ export function AddSessionsDialog({ sessions, onClose, onDone }: Props) {
                 <label key={k} className="mb-2 block">
                   <span className="label">
                     „{e.label}“ <span className="font-normal text-slate-500">· {e.gymName}</span>
+                    {e.suggestionId && <span className="ml-1 font-normal text-amber-600 dark:text-amber-300">· Vorschlag prüfen</span>}
                   </span>
                   <select
                     className="input"

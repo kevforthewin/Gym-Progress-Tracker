@@ -114,7 +114,9 @@ function ExercisesTab() {
               {list.map((e) => (
                 <button key={e.id} type="button" className="flex w-full items-center justify-between px-4 py-3 text-left" onClick={() => setEditing(e)}>
                   <span>{e.name}</span>
-                  <span className="text-xs text-slate-500">{EXERCISE_TYPE_LABEL[e.type]}</span>
+                  <span className="text-right text-xs text-slate-500">
+                    {e.alternativeGroup ? `⇄ ${e.alternativeGroup}` : EXERCISE_TYPE_LABEL[e.type]}
+                  </span>
                 </button>
               ))}
             </Card>

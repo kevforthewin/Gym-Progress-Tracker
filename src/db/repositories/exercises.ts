@@ -1,4 +1,4 @@
-import { db, newId } from '../schema';
+import { db, fillExerciseDefaults, newId } from '../schema';
 import type { Exercise, ExerciseType } from '../types';
 
 export async function createExercise(input: {
@@ -8,6 +8,7 @@ export async function createExercise(input: {
   notes?: string;
 }): Promise<Exercise> {
   const ex: Exercise = { id: newId(), createdAt: Date.now(), ...input, name: input.name.trim() };
+  fillExerciseDefaults(ex);
   await db.exercises.add(ex);
   return ex;
 }

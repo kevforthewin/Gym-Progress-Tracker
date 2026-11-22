@@ -16,6 +16,14 @@ mit automatischem **Ziel für das nächste Training** (doppelte Progression) und
   - Zeit/Distanz: +5 %. Aufwärmsätze zählen nie.
 - **Fortschritt**: e1RM, Top-Gewicht, Volumen, Max-Wdh., Distanz/Dauer als Verlauf, Bestwerte, Session-Tabelle.
 - **Backup**: JSON-Export/Wiederherstellen (Daten liegen nur lokal in IndexedDB), Erinnerung nach 14 Tagen.
+- **Schnelleingabe**: Training als Text („Bankdrücken 70 a 8/8/7“, „Links 54 a 8/8/8“, „6,8 a 10/10/10 pro Seite“, „7/7/6“) eintragen, Namen werden zugeordnet und gemerkt.
+- **Wertung pro Satz/Übung**: „unsauber“, „Ersatz“, „zählt nicht“ → bleibt in der Historie, zählt nicht fürs Ziel/Charts/Bestwerte.
+- **Gewichtsstufen pro Gerät** (z. B. Matrix 29,8 · 32 · 34,3 …) – Ziel und +/− springen auf echte Werte; „Aus Historie übernehmen“.
+- **Alternativen & Tauschen**: Übungen mit gleicher Alternativ-Gruppe im Training per ⋯ tauschen (z. B. Face Pull ⇄ Reverse Butterfly).
+- **Links/rechts in einer Karte** mit Seitenvergleich (schwächere Seite zuerst, Hinweis ab 5 % / Status ab 10 % Unterschied).
+- **Status** auf der Startseite: Steigern, Bestwerte (7 Tage), Stagniert, Deload, Wochenbilanz.
+- **Wochen-Volumen**: Arbeitssätze pro Muskelgruppe und Woche (Orientierung 10–20).
+- **Körpergewicht & Cardio**: Verlauf, Minuten pro Woche.
 - **Trainings hinzufügen**: Trainings aus einer JSON-Datei anhängen, ohne Daten zu löschen (siehe unten).
 
 ## Trainings per Datei hinzufügen
