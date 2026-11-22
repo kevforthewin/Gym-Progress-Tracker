@@ -15,7 +15,35 @@ mit automatischem **Ziel für das nächste Training** (doppelte Progression) und
   - 3 Sessions ohne Verbesserung → Deload ≈ −10 %.
   - Zeit/Distanz: +5 %. Aufwärmsätze zählen nie.
 - **Fortschritt**: e1RM, Top-Gewicht, Volumen, Max-Wdh., Distanz/Dauer als Verlauf, Bestwerte, Session-Tabelle.
-- **Backup**: JSON-Export/Import (Daten liegen nur lokal in IndexedDB), Erinnerung nach 14 Tagen.
+- **Backup**: JSON-Export/Wiederherstellen (Daten liegen nur lokal in IndexedDB), Erinnerung nach 14 Tagen.
+- **Trainings hinzufügen**: Trainings aus einer JSON-Datei anhängen, ohne Daten zu löschen (siehe unten).
+
+## Trainings per Datei hinzufügen
+*Mehr → Trainings hinzufügen* hängt Trainings an, ohne etwas zu löschen (anders als *Backup wiederherstellen*,
+das alle Daten ersetzt). Gyms und Übungen werden über den Namen zugeordnet; unbekannte Namen ordnest du einmal zu,
+die Zuordnung wird gemerkt. Doppelte Trainings (gleiches Gym, Tag und Trainingstag) werden erkannt.
+
+```json
+{
+  "sessions": [
+    {
+      "date": "2026-11-22",
+      "gym": "Iron & Soul",
+      "workout_type": "Push",
+      "exercises": [
+        { "exercise": "Bankdrücken", "sets": [{ "weight_kg": 70, "reps": 8 }, { "weight_kg": 70, "reps": 7 }] },
+        { "exercise": "Kabel-Seitheben", "sets": [{ "weight_kg": 7.9, "reps": 11, "side": "L" }, { "weight_kg": 7.9, "reps": 12, "side": "R" }] },
+        { "exercise": "Cable Fly", "sets": [{ "weight_kg": 14, "reps": 10, "warmup": true }, { "weight_kg": 21, "reps": 8 }] }
+      ]
+    }
+  ]
+}
+```
+- `date` fehlt/`null` → heute (in der Vorschau änderbar), auch `TT.MM.JJJJ` möglich
+- `weight_kg: null` → Körpergewicht, Sätze mit `reps: null` werden ignoriert
+- `side` `L`/`R` → eigene Übung „… (links)“/„… (rechts)“
+- `counts_as_reference: false` an einer Übung → wird nicht importiert
+- Ein App-Backup kann hier ebenfalls gewählt werden: dann werden nur fehlende Datensätze ergänzt.
 
 ## Stack
 Vite · React 18 · TypeScript · Tailwind · Dexie (IndexedDB) · Recharts · vite-plugin-pwa · Vitest

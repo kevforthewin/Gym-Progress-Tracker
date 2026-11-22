@@ -3,11 +3,15 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/schema';
 import { downloadBackup, importData } from '../../db/backup';
 import { getSetting } from '../../db/repositories/settings';
+import { isAppBackup, mergeAppBackup, parseSessionsFile, type ImportSession } from '../../db/addSessions';
+import { AddSessionsDialog } from './AddSessionsDialog';
 import { fmtDate } from '../../domain/units';
 import { Button, Card, PageHeader } from '../../components/ui';
 
 export function SettingsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
+  const addRef = useRef<HTMLInputElement>(null);
+  const [pending, setPending] = useState<ImportSession[] | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const info = useLiveQuery(async () => ({
     lastBackupAt: await getSetting('lastBackupAt'),
@@ -19,7 +23,7 @@ export function SettingsPage() {
   const onImport = async (file: File) => {
     try {
       const json = JSON.parse(await file.text());
-      if (!confirm('Alle aktuellen Daten werden durch das Backup ersetzt. Fortfahren?')) return;
+      if (!confirm('Achtung: ALLE aktuellen Daten werden durch das Backup ersetzt. Zum Ergänzen „Trainings hinzufügen“ nutzen. Fortfahren?')) return;
       await importData(json);
       setMsg('✅ Backup importiert.');
     } catch (e) {
@@ -27,10 +31,47 @@ export function SettingsPage() {
     }
   };
 
+  const onAdd = async (file: File) => {
+    try {
+      const json = JSON.parse(await file.text());
+      if (isAppBackup(json)) {
+        const n = await mergeAppBackup(json);
+        setMsg(`✅ ${n} fehlende Datensätze aus dem Backup ergänzt.`);
+        return;
+      }
+      setPending(parseSessionsFile(json));
+    } catch (e) {
+      setMsg(`❌ ${(e as Error).message}`);
+    }
+  };
+
   return (
     <>
       <PageHeader title="Einstellungen" />
       <div className="space-y-4">
+        <Card className="space-y-3">
+          <h2 className="font-semibold">Trainings hinzufügen</h2>
+          <p className="text-sm text-slate-500">
+            Trainings aus einer JSON-Datei ergänzen (z. B. aus deinem Trainingslog). Es wird nichts gelöscht, doppelte
+            Trainings werden erkannt.
+          </p>
+          <Button variant="secondary" onClick={() => addRef.current?.click()}>
+            Datei auswählen
+          </Button>
+          <input
+            ref={addRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            data-testid="add-sessions-input"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onAdd(f);
+              e.target.value = '';
+            }}
+          />
+        </Card>
+
         <Card className="space-y-3">
           <h2 className="font-semibold">Backup</h2>
           <p className="text-sm text-slate-500">
@@ -44,11 +85,12 @@ export function SettingsPage() {
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button onClick={() => downloadBackup().then(() => setMsg('✅ Backup heruntergeladen.'))}>Backup exportieren</Button>
             <Button variant="secondary" onClick={() => fileRef.current?.click()}>
-              Backup importieren
+              Backup wiederherstellen
             </Button>
           </div>
           <input
             ref={fileRef}
+            data-testid="restore-input"
             type="file"
             accept="application/json,.json"
             className="hidden"
@@ -58,8 +100,9 @@ export function SettingsPage() {
               e.target.value = '';
             }}
           />
-          {msg && <p className="text-sm">{msg}</p>}
         </Card>
+
+        {msg && <p className="text-sm">{msg}</p>}
 
         <Card className="space-y-1 text-sm">
           <h2 className="font-semibold">Speicher</h2>
@@ -94,6 +137,14 @@ export function SettingsPage() {
           </Button>
         </Card>
       </div>
+      <AddSessionsDialog
+        sessions={pending}
+        onClose={() => setPending(null)}
+        onDone={(m) => {
+          setPending(null);
+          setMsg(m);
+        }}
+      />
     </>
   );
 }
