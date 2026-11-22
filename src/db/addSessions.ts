@@ -9,7 +9,7 @@
 import { ALL_TABLES, db, newId } from './schema';
 import { BACKUP_FORMAT, validateBackup } from './backup';
 import { getSetting, setSetting } from './repositories/settings';
-import type { Exercise, Gym, PlanDay, Session, SetEntry, Station } from './types';
+import type { Exercise, Gym, PlanDay, PlanDayExercise, Session, SetEntry, Station } from './types';
 
 export interface ImportSet {
   weightKg: number;
@@ -141,6 +141,11 @@ export interface ExerciseMatch {
   label: string;
   stationId?: string;
   allZeroWeight: boolean;
+  /** Plantage der Trainings, in denen die Übung vorkommt. */
+  planDayIds: string[];
+  /** Übung steht bereits in allen diesen Plantagen. */
+  inPlan: boolean;
+  maxReps: number;
 }
 export interface SessionPreview {
   key: string;
@@ -186,7 +191,7 @@ async function findPlanDay(workoutType: string | undefined, days: PlanDay[], act
 }
 
 export async function analyzeImport(sessions: ImportSession[]): Promise<ImportAnalysis> {
-  const [gyms, stations, exercises, days, existing, aliases, activePlanId] = await Promise.all([
+  const [gyms, stations, exercises, days, existing, aliases, activePlanId, pdes] = await Promise.all([
     db.gyms.toArray(),
     db.stations.toArray(),
     db.exercises.toArray(),
@@ -194,8 +199,11 @@ export async function analyzeImport(sessions: ImportSession[]): Promise<ImportAn
     db.sessions.toArray(),
     getSetting('importAliases'),
     getSetting('activePlanId'),
+    db.planDayExercises.toArray(),
   ]);
   const exMap = new Map(exercises.map((e) => [e.id, e]));
+  const planDayOf = new Map<string, string | undefined>();
+  for (const s of sessions) planDayOf.set(s.key, await findPlanDay(s.workoutType, days, activePlanId));
 
   const gymMatches = new Map<string, GymMatch>();
   for (const s of sessions) {
@@ -212,8 +220,12 @@ export async function analyzeImport(sessions: ImportSession[]): Promise<ImportAn
       const k = exKey(s.gymName, label);
       const prev = exMatches.get(k);
       const zero = e.sets.every((x) => x.weightKg === 0);
+      const reps = Math.max(...e.sets.map((x) => x.reps));
+      const dayId = planDayOf.get(s.key);
       if (prev) {
         prev.allZeroWeight = prev.allZeroWeight && zero;
+        prev.maxReps = Math.max(prev.maxReps, reps);
+        if (dayId && !prev.planDayIds.includes(dayId)) prev.planDayIds.push(dayId);
         continue;
       }
       exMatches.set(k, {
@@ -221,15 +233,25 @@ export async function analyzeImport(sessions: ImportSession[]): Promise<ImportAn
         label,
         stationId: gymId ? matchStation(gymStations, exMap, label, aliases ?? {}, gymId) : undefined,
         allZeroWeight: zero,
+        planDayIds: dayId ? [dayId] : [],
+        inPlan: false,
+        maxReps: reps,
       });
     }
+  }
+  // Steht die (zugeordnete oder gleichnamige) Übung schon im Plantag?
+  for (const m of exMatches.values()) {
+    const exId = m.stationId
+      ? stations.find((st) => st.id === m.stationId)?.exerciseId
+      : exercises.find((x) => norm(x.name) === norm(m.label))?.id;
+    m.inPlan = !!exId && m.planDayIds.every((d) => pdes.some((p) => p.planDayId === d && p.exerciseId === exId));
   }
 
   const previews: SessionPreview[] = [];
   for (const s of sessions) {
     const date = s.date ?? todayIso();
     const gymId = gymMatches.get(norm(s.gymName))?.gymId;
-    const planDayId = await findPlanDay(s.workoutType, days, activePlanId);
+    const planDayId = planDayOf.get(s.key);
     const t = isoToTs(date);
     const duplicate =
       !!gymId &&
@@ -259,6 +281,8 @@ export interface ImportDecisions {
   exercises: Record<string, ExerciseChoice>;
   /** session.key -> { include, date } */
   sessions: Record<string, { include: boolean; date: string; planDayId?: string }>;
+  /** exKey -> neue/fehlende Übung in die Plantage aufnehmen */
+  addToPlan?: Record<string, boolean>;
 }
 
 export interface ImportResult {
@@ -266,13 +290,14 @@ export interface ImportResult {
   sets: number;
   newGyms: number;
   newStations: number;
+  addedToPlan: number;
 }
 
 export async function applyImport(sessions: ImportSession[], analysis: ImportAnalysis, d: ImportDecisions): Promise<ImportResult> {
-  const result: ImportResult = { sessions: 0, sets: 0, newGyms: 0, newStations: 0 };
+  const result: ImportResult = { sessions: 0, sets: 0, newGyms: 0, newStations: 0, addedToPlan: 0 };
   const now = Date.now();
 
-  await db.transaction('rw', [db.gyms, db.exercises, db.stations, db.sessions, db.sets, db.settings], async () => {
+  await db.transaction('rw', [db.gyms, db.exercises, db.stations, db.sessions, db.sets, db.settings, db.planDayExercises], async () => {
     // Gyms
     const gymIds = new Map<string, string>();
     for (const g of analysis.gyms) {
@@ -314,6 +339,32 @@ export async function applyImport(sessions: ImportSession[], analysis: ImportAna
       }
     }
     await setSetting('importAliases', aliases);
+
+    // In den Plan aufnehmen
+    const allStations = new Map((await db.stations.toArray()).map((st) => [st.id, st]));
+    const pdes = await db.planDayExercises.toArray();
+    for (const e of analysis.exercises) {
+      const k = exKey(e.gymName, e.label);
+      if (!d.addToPlan?.[k]) continue;
+      const exId = allStations.get(stationIds.get(k) ?? '')?.exerciseId;
+      if (!exId) continue;
+      for (const dayId of e.planDayIds) {
+        if (pdes.some((p) => p.planDayId === dayId && p.exerciseId === exId)) continue;
+        const [repMin, repMax] = e.maxReps <= 12 ? [8, 12] : e.maxReps <= 16 ? [12, 15] : [15, 20];
+        const pde: PlanDayExercise = {
+          id: newId(),
+          planDayId: dayId,
+          exerciseId: exId,
+          order: pdes.filter((p) => p.planDayId === dayId).length,
+          sets: 3,
+          repMin: e.allZeroWeight ? 6 : repMin,
+          repMax: e.allZeroWeight ? 10 : repMax,
+        };
+        await db.planDayExercises.add(pde);
+        pdes.push(pde);
+        result.addedToPlan++;
+      }
+    }
 
     // Trainings
     const stationById = new Map((await db.stations.toArray()).map((s) => [s.id, s]));

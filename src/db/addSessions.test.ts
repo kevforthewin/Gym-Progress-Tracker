@@ -83,7 +83,7 @@ describe('analyzeImport / applyImport', () => {
     expect(a.exercises.find((e) => e.label === 'Low-to-High Fly')?.stationId).toBeUndefined();
 
     const r = await applyImport(sessions, a, accept(a));
-    expect(r).toEqual({ sessions: 1, sets: 6, newGyms: 0, newStations: 1 });
+    expect(r).toEqual({ sessions: 1, sets: 6, newGyms: 0, newStations: 1, addedToPlan: 0 });
     expect(await db.sets.where('stationId').equals(bankSt.id).count()).toBe(2);
     expect(await db.sets.filter((s) => s.isWarmup).count()).toBe(1);
   });
@@ -121,6 +121,35 @@ describe('analyzeImport / applyImport', () => {
     const r = await applyImport(sessions, a, accept(a));
     expect(r.newGyms).toBe(1);
     expect(await db.gyms.count()).toBe(2);
+  });
+});
+
+describe('Plan-Aufnahme', () => {
+  it('nimmt neue Übungen auf Wunsch in den Plantag auf (einmalig)', async () => {
+    await seedExampleData();
+    const gym = (await db.gyms.toArray())[0];
+    const pull = (await db.planDays.toArray()).find((d) => d.name === 'Pull')!;
+    const file = { gym: gym.name, workout_type: 'Pull', exercises: [
+      { exercise: 'Hoist Mid Row', sets: [{ weight_kg: 70, reps: 9 }, { weight_kg: 70, reps: 10 }] },
+      { exercise: 'Latzug', sets: [{ weight_kg: 60, reps: 10 }] },
+    ] };
+    const sessions = parseSessionsFile(file);
+    const a = await analyzeImport(sessions);
+    const mid = a.exercises.find((e) => e.label === 'Hoist Mid Row')!;
+    expect(mid.inPlan).toBe(false);
+    expect(mid.planDayIds).toEqual([pull.id]);
+    expect(a.exercises.find((e) => e.label === 'Latzug')!.inPlan).toBe(true);
+    const d = accept(a);
+    d.addToPlan = { [exKey(gym.name, 'Hoist Mid Row')]: true };
+    const before = await db.planDayExercises.where('planDayId').equals(pull.id).count();
+    const r = await applyImport(sessions, a, d);
+    expect(r.addedToPlan).toBe(1);
+    const list = await db.planDayExercises.where('planDayId').equals(pull.id).sortBy('order');
+    expect(list).toHaveLength(before + 1);
+    expect(list.at(-1)).toMatchObject({ sets: 3, repMin: 8, repMax: 12, order: before });
+    // zweiter Import: steht schon im Plan
+    const again = await analyzeImport(parseSessionsFile({ ...file, date: '2030-01-01' }));
+    expect(again.exercises.find((e) => e.label === 'Hoist Mid Row')!.inPlan).toBe(true);
   });
 });
 

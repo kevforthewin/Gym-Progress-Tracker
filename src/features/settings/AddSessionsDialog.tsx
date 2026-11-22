@@ -48,12 +48,23 @@ export function AddSessionsDialog({ sessions, onClose, onDone }: Props) {
           ]),
         ),
         sessions: Object.fromEntries(a.sessions.map((s) => [s.key, { include: !s.duplicate, date: s.date, planDayId: s.planDayId }])),
+        // Neue Übungen standardmäßig in den Plan aufnehmen
+        addToPlan: Object.fromEntries(
+          a.exercises.filter((e) => !e.inPlan && e.planDayIds.length && !e.stationId).map((e) => [exKey(e.gymName, e.label), true]),
+        ),
       });
     });
   }, [sessions]);
 
   const unknownExercises = useMemo(() => analysis?.exercises.filter((e) => !e.stationId) ?? [], [analysis]);
   const matchedCount = (analysis?.exercises.length ?? 0) - unknownExercises.length;
+  const planCandidates = useMemo(
+    () =>
+      analysis?.exercises.filter(
+        (e) => !e.inPlan && e.planDayIds.length && dec.exercises[exKey(e.gymName, e.label)]?.kind !== 'skip',
+      ) ?? [],
+    [analysis, dec.exercises],
+  );
   const selected = analysis?.sessions.filter((s) => dec.sessions[s.key]?.include) ?? [];
 
   if (!sessions) return null;
@@ -63,7 +74,11 @@ export function AddSessionsDialog({ sessions, onClose, onDone }: Props) {
     setBusy(true);
     try {
       const r = await applyImport(sessions, analysis, dec);
-      onDone(`✅ ${r.sessions} Training(s) mit ${r.sets} Sätzen hinzugefügt${r.newStations ? `, ${r.newStations} Gerät(e) neu angelegt` : ''}.`);
+      onDone(
+        `✅ ${r.sessions} Training(s) mit ${r.sets} Sätzen hinzugefügt${r.newStations ? `, ${r.newStations} Gerät(e) neu angelegt` : ''}${
+          r.addedToPlan ? `, ${r.addedToPlan} Übung(en) in den Plan aufgenommen` : ''
+        }.`,
+      );
     } catch (e) {
       onDone(`❌ Import fehlgeschlagen: ${(e as Error).message}`);
     } finally {
@@ -140,6 +155,30 @@ export function AddSessionsDialog({ sessions, onClose, onDone }: Props) {
               <p className="text-xs text-slate-500">Zuordnungen werden gemerkt und beim nächsten Import automatisch genutzt.</p>
             )}
           </section>
+
+          {planCandidates.length > 0 && (
+            <section>
+              <h3 className="mb-1 font-semibold">In den Plan aufnehmen</h3>
+              <p className="mb-2 text-slate-500">Diese Übungen stehen noch nicht im Trainingstag:</p>
+              {planCandidates.map((e) => {
+                const k = exKey(e.gymName, e.label);
+                const dayNames = e.planDayIds.map((id) => lookup.days.find((x) => x.id === id)?.name).join(', ');
+                return (
+                  <label key={k} className="flex items-center gap-2 py-1">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5"
+                      checked={!!dec.addToPlan?.[k]}
+                      onChange={(ev) => setDec((d) => ({ ...d, addToPlan: { ...d.addToPlan, [k]: ev.target.checked } }))}
+                    />
+                    <span>
+                      {e.label} <span className="text-slate-500">→ {dayNames}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </section>
+          )}
 
           <section>
             <h3 className="mb-1 font-semibold">Trainings ({selected.length}/{analysis.sessions.length})</h3>

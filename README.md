@@ -43,6 +43,7 @@ die Zuordnung wird gemerkt. Doppelte Trainings (gleiches Gym, Tag und Trainingst
 - `weight_kg: null` → Körpergewicht, Sätze mit `reps: null` werden ignoriert
 - `side` `L`/`R` → eigene Übung „… (links)“/„… (rechts)“
 - `counts_as_reference: false` an einer Übung → wird nicht importiert
+- Neue Übungen können in der Vorschau direkt in den Trainingstag (`workout_type`) aufgenommen werden (3 Sätze, Wdh.-Bereich aus den Daten)
 - Ein App-Backup kann hier ebenfalls gewählt werden: dann werden nur fehlende Datensätze ergänzt.
 
 ## Stack
