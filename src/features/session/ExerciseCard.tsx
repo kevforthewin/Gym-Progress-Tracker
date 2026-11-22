@@ -132,6 +132,7 @@ export function ExerciseCard({ sessionId, station, exercise, prescription, sets 
               <span className="text-sm font-semibold">Ziel: {target.sets.map((s) => fmtSet(exercise.type, s)).join(', ')}</span>
             </div>
             <p className="text-xs text-slate-500">{target.message}</p>
+            {station.notes && <p className="mt-1 text-xs italic text-slate-500">📝 {station.notes}</p>}
             {last && (
               <p className="mt-1 text-xs text-slate-500">
                 Letztes Mal: {last.sets.map((s) => fmtSet(exercise.type, s)).join(', ')}

@@ -109,6 +109,7 @@ function StationForm({
   const [inc, setInc] = useState(String(station?.weightIncrement ?? 2.5));
   const [start, setStart] = useState(station?.startWeight !== undefined ? String(station.startWeight) : '');
   const [note, setNote] = useState(station?.settingsNote ?? '');
+  const [notes, setNotes] = useState(station?.notes ?? '');
 
   if (exerciseId === NEW && !station) {
     return (
@@ -142,6 +143,7 @@ function StationForm({
       weightIncrement: parseNum(inc) ?? 0,
       startWeight: parseNum(start),
       settingsNote: note.trim() || undefined,
+      notes: notes.trim() || undefined,
     };
     if (station) await updateStation(station.id, values);
     else await createStation({ gymId, ...values });
@@ -184,6 +186,9 @@ function StationForm({
       )}
       <Field label="Einstellungen (Sitzhöhe, Polster …)">
         <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="z. B. Sitz 4, Lehne 2" />
+      </Field>
+      <Field label="Hinweise">
+        <textarea className="input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="z. B. Technik, Alternativen, Historie" />
       </Field>
       <Button className="w-full" onClick={save}>
         Speichern

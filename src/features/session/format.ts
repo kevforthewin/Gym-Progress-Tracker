@@ -8,7 +8,7 @@ export function fmtSet(type: ExerciseType, s: WorkSet): string {
     return parts.filter(Boolean).join(' · ') || '–';
   }
   const w = s.weightKg;
-  const reps = s.reps ?? '?';
+  const reps = s.reps === undefined ? '?' : fmtNumber(s.reps, 1);
   if (type === 'bodyweight') return w ? `KG+${fmtNumber(w)} × ${reps}` : `KG × ${reps}`;
   return w === undefined ? `${reps} Wdh.` : `${fmtNumber(w)} kg × ${reps}`;
 }

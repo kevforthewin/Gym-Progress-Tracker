@@ -50,7 +50,10 @@ export function ActiveSessionPage() {
   const stationForExercise = (exerciseId: string) =>
     gymStations.filter((s) => s.exerciseId === exerciseId).sort((a, b) => b.createdAt - a.createdAt)[0];
 
-  const planItems = pdes.map((pde) => ({ pde, station: stationForExercise(pde.exerciseId) }));
+  const allPlanItems = pdes.map((pde) => ({ pde, station: stationForExercise(pde.exerciseId) }));
+  // Pläne sind gym-übergreifend: Übungen ohne Gerät in diesem Gym werden ausgeblendet.
+  const planItems = allPlanItems.filter((i) => i.station);
+  const unmapped = allPlanItems.filter((i) => !i.station);
   const plannedStationIds = new Set(planItems.map((i) => i.station?.id).filter(Boolean));
   const extraStations = [...new Set([...setsByStation.keys(), ...extraIds])]
     .filter((sid) => !plannedStationIds.has(sid))
@@ -101,24 +104,7 @@ export function ActiveSessionPage() {
       <div className="space-y-3">
         {planItems.map(({ pde, station }) => {
           const ex = lookup.exercises.get(pde.exerciseId);
-          if (!ex) return null;
-          if (!station)
-            return (
-              <Card key={pde.id} className="flex items-center justify-between">
-                <div>
-                  <p className="font-bold">{ex.name}</p>
-                  <p className="text-xs text-slate-500">Kein Gerät in {gym?.name}</p>
-                </div>
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    createStation({ gymId: session.gymId, exerciseId: ex.id, name: ex.name, weightIncrement: ex.type === 'time_distance' ? 0 : 2.5 })
-                  }
-                >
-                  Anlegen
-                </Button>
-              </Card>
-            );
+          if (!ex || !station) return null;
           return (
             <ExerciseCard
               key={pde.id}
@@ -148,6 +134,34 @@ export function ActiveSessionPage() {
         <Button variant="secondary" className="w-full" onClick={() => setAddOpen(true)}>
           + Übung hinzufügen
         </Button>
+
+        {unmapped.length > 0 && (
+          <details className="rounded-xl border border-dashed border-slate-300 px-4 py-2 text-sm text-slate-500 dark:border-slate-700">
+            <summary className="cursor-pointer py-1">
+              {unmapped.length} Plan-Übung(en) gibt es in {gym?.name} nicht
+            </summary>
+            <ul className="mt-1 divide-y divide-slate-200 dark:divide-slate-700">
+              {unmapped.map(({ pde }) => {
+                const ex = lookup.exercises.get(pde.exerciseId);
+                if (!ex) return null;
+                return (
+                  <li key={pde.id} className="flex items-center justify-between py-1.5">
+                    <span>{ex.name}</span>
+                    <Button
+                      variant="ghost"
+                      className="min-h-9 px-2 text-sm"
+                      onClick={() =>
+                        createStation({ gymId: session.gymId, exerciseId: ex.id, name: ex.name, weightIncrement: ex.type === 'time_distance' ? 0 : 2.5 })
+                      }
+                    >
+                      Hier anlegen
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+        )}
 
         <Card className="space-y-3">
           <label className="block">

@@ -44,6 +44,11 @@ describe('computeTarget – Gewicht × Reps', () => {
     expect(t.sets).toEqual(s(40, 12, 11, 10));
   });
 
+  it('halbe Wiederholungen werden auf ganze Ziel-Wdh. aufgerundet', () => {
+    const t = computeTarget(base([s(65, 10.5, 9, 8.5)]));
+    expect(t.sets.map((x) => x.reps)).toEqual([11, 10, 9]);
+  });
+
   it('ignoriert leichtere Back-off-Sätze für die Bewertung', () => {
     const t = computeTarget(base([[...s(40, 12, 12, 12), ...s(30, 15)]]));
     expect(t.reason).toBe('increase');

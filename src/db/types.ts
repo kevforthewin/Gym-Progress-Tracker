@@ -30,6 +30,8 @@ export interface Station {
   startWeight?: number;
   /** Einstellungen wie Sitzhöhe, Polsterposition … */
   settingsNote?: string;
+  /** Freie Hinweise/Historie zum Gerät. */
+  notes?: string;
   createdAt: number;
 }
 

@@ -129,7 +129,7 @@ function strengthTarget(input: TargetInput, history: SessionHistory[]): Target {
 
   const sets = repeat(p.sets, (i) => {
     const prev = topSets[i]?.reps ?? topSets.at(-1)?.reps ?? p.repMin;
-    return { weightKg: top, reps: Math.min(p.repMax, prev + 1) };
+    return { weightKg: top, reps: Math.min(p.repMax, Math.floor(prev) + 1) };
   });
   return {
     reason: 'repeat',

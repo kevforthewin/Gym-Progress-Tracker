@@ -99,28 +99,28 @@ export function StartSessionPage() {
         {mapping && mapping.length > 0 && (
           <Card>
             <h2 className="mb-2 font-semibold">Geräte in {lookup.gyms.get(gymId)?.name}</h2>
+            {mapping.length === missing.length && (
+              <p className="text-sm text-amber-700 dark:text-amber-300">Für diesen Tag gibt es in diesem Gym noch keine Geräte.</p>
+            )}
             <ul className="divide-y divide-slate-200 dark:divide-slate-700">
-              {mapping.map(({ pde, station }) => (
-                <li key={pde.id} className="flex items-center justify-between py-2 text-sm">
-                  <span>{lookup.exercises.get(pde.exerciseId)?.name}</span>
-                  {station ? (
-                    <span className="text-slate-500">{station.name}</span>
-                  ) : (
-                    <span className="chip bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">kein Gerät</span>
-                  )}
-                </li>
-              ))}
+              {mapping
+                .filter((m) => m.station)
+                .map(({ pde, station }) => (
+                  <li key={pde.id} className="py-2 text-sm">
+                    {station!.name}
+                  </li>
+                ))}
             </ul>
             {missing.length > 0 && (
-              <div className="mt-3 space-y-2 text-sm">
-                <p className="text-slate-500">
-                  Für {missing.length} Übung(en) gibt es in diesem Gym noch kein Gerät. Anlegen mit 2,5 kg Inkrement
-                  (später unter Verwalten anpassbar) oder überspringen.
-                </p>
-                <Button variant="secondary" className="w-full" onClick={createMissing}>
-                  Fehlende Geräte anlegen
+              <details className="mt-3 text-sm text-slate-500">
+                <summary className="cursor-pointer">
+                  {missing.length} Plan-Übung(en) gibt es hier nicht – werden ausgeblendet
+                </summary>
+                <p className="mt-2">{missing.map((m) => lookup.exercises.get(m.pde.exerciseId)?.name).join(', ')}</p>
+                <Button variant="secondary" className="mt-2 w-full" onClick={createMissing}>
+                  Trotzdem in diesem Gym anlegen
                 </Button>
-              </div>
+              </details>
             )}
           </Card>
         )}
