@@ -67,12 +67,15 @@ export function ExerciseBody({ sessionId, station, exercise, prescription, sets,
 
   const nextTarget: WorkSet | undefined = target?.sets[workSets.length] ?? target?.sets.at(-1);
   const lastLogged = workSets.at(-1);
+  /** Alle geplanten Sätze geschafft -> weitere Sätze sind Zusatzsätze. */
+  const extra = !!target && workSets.length >= target.sets.length;
   const targetKey = target ? JSON.stringify(target.sets) : '';
 
   useEffect(() => {
     if (editing || !target) return;
     setWeight(lastLogged?.weightKg ?? nextTarget?.weightKg);
-    setReps(nextTarget?.reps);
+    // Zusatzsatz: mit dem letzten Satz vorbelegen
+    setReps(extra && lastLogged?.reps ? lastLogged.reps : nextTarget?.reps);
     setDuration(nextTarget?.durationSec !== undefined ? fmtDuration(nextTarget.durationSec) : '');
     setDistanceKm(nextTarget?.distanceM ? String(nextTarget.distanceM / 1000) : '');
     setWarmup(false);
@@ -218,9 +221,14 @@ export function ExerciseBody({ sessionId, station, exercise, prescription, sets,
           </Button>
         )}
         <Button className="flex-1" disabled={!v} onClick={save}>
-          {editing ? 'Satz aktualisieren' : 'Satz speichern'}
+          {editing ? 'Satz aktualisieren' : extra ? `${workSets.length + 1}. Satz speichern (zusätzlich)` : 'Satz speichern'}
         </Button>
       </div>
+      {extra && !editing && (
+        <p className="-mt-1 text-center text-xs text-slate-500">
+          Geplante Sätze geschafft. Zusatzsätze zählen fürs Volumen, das Ziel bewertet die ersten {target.sets.length}.
+        </p>
+      )}
     </div>
   );
 }

@@ -112,6 +112,16 @@ export function ExerciseCard({ sessionId, title, members, alternatives = [], onS
         </button>
       </div>
 
+      {!open && done && (
+        <button
+          type="button"
+          className="mt-2 w-full rounded-lg border border-dashed border-slate-300 py-2 text-sm font-semibold text-emerald-600 dark:border-slate-600 dark:text-emerald-400"
+          onClick={() => setOpen(true)}
+        >
+          + Weiterer Satz
+        </button>
+      )}
+
       {open && histories && (
         <div className="mt-3 space-y-4">
           {order.map((i, n) => {

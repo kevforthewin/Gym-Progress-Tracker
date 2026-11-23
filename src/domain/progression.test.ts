@@ -49,6 +49,17 @@ describe('computeTarget – Gewicht × Reps', () => {
     expect(t.sets.map((x) => x.reps)).toEqual([11, 10, 9]);
   });
 
+  it('Zusatzsatz (4. Satz mit weniger Wdh.) blockiert die Steigerung nicht', () => {
+    const t = computeTarget(base([s(40, 12, 12, 12, 9)]));
+    expect(t.reason).toBe('increase');
+    expect(t.sets).toHaveLength(3);
+  });
+
+  it('Zusatzsatz zählt nicht als Fortschritt bei der Stagnation', () => {
+    const t = computeTarget(base([s(50, 10, 9, 8), s(50, 10, 9, 8, 8), s(50, 10, 9, 8)]));
+    expect(t.reason).toBe('deload');
+  });
+
   it('ignoriert leichtere Back-off-Sätze für die Bewertung', () => {
     const t = computeTarget(base([[...s(40, 12, 12, 12), ...s(30, 15)]]));
     expect(t.reason).toBe('increase');

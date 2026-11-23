@@ -92,9 +92,12 @@ export function topWeight(sets: WorkSet[]): number {
 }
 
 /** Summe der Reps aller Sätze mit dem Top-Gewicht. */
-export function repsAtTop(sets: WorkSet[]): number {
+export function repsAtTop(sets: WorkSet[], maxSets = Infinity): number {
   const top = topWeight(sets);
-  return sets.filter((s) => (s.weightKg ?? 0) === top).reduce((a, s) => a + (s.reps ?? 0), 0);
+  return sets
+    .filter((s) => (s.weightKg ?? 0) === top)
+    .slice(0, maxSets)
+    .reduce((a, s) => a + (s.reps ?? 0), 0);
 }
 
 function repeat<T>(n: number, f: (i: number) => T): T[] {
@@ -125,7 +128,8 @@ function strengthTarget(input: TargetInput, history: SessionHistory[]): Target {
 
   const top = topWeight(last.sets);
   const topSets = last.sets.filter((s) => (s.weightKg ?? 0) === top);
-  const allAtMax = topSets.length >= p.sets && topSets.every((s) => (s.reps ?? 0) >= p.repMax);
+  // Bewertet werden die geplanten Sätze – Zusatzsätze (z. B. ein 4. Satz) blockieren keine Steigerung.
+  const allAtMax = topSets.length >= p.sets && topSets.slice(0, p.sets).every((s) => (s.reps ?? 0) >= p.repMax);
 
   if (allAtMax) {
     const next = stepUp(top, increment, steps);
@@ -144,7 +148,7 @@ function strengthTarget(input: TargetInput, history: SessionHistory[]): Target {
   const recent = history.slice(-STAGNATION_SESSIONS);
   if (recent.length === STAGNATION_SESSIONS && top > 0) {
     const sameWeight = recent.every((h) => topWeight(h.sets) === top);
-    const reps = recent.map((h) => repsAtTop(h.sets));
+    const reps = recent.map((h) => repsAtTop(h.sets, p.sets));
     const noProgress = reps.every((r, i) => i === 0 || r <= reps[i - 1]);
     if (sameWeight && noProgress) {
       const deload = floorToStep(top * DELOAD_FACTOR, increment, steps);
