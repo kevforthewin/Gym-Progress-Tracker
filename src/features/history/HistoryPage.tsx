@@ -49,6 +49,10 @@ export function HistoryPage() {
 
   if (!lookup || !items) return null;
 
+  // Filter nur mit Gyms, in denen es Einträge gibt (z. B. kein leeres Beispiel-Gym)
+  const usedGymIds = new Set(items.flatMap((it) => (it.kind === 'training' ? [it.gymId] : it.entry.gymId ? [it.entry.gymId] : [])));
+  const filterGyms = [...lookup.gyms.values()].filter((g) => usedGymIds.has(g.id));
+
   const shown = items.filter(
     (it) =>
       (filter === 'all' || it.kind === filter) && (!gymId || (it.kind === 'training' ? it.gymId === gymId : it.entry.gymId === gymId)),
@@ -71,10 +75,10 @@ export function HistoryPage() {
           { value: 'cardio', label: 'Cardio' },
         ]}
       />
-      {lookup.gyms.size > 1 && filter !== 'cardio' && (
+      {filterGyms.length > 1 && filter !== 'cardio' && (
         <select className="input mb-4" value={gymId} onChange={(e) => setGymId(e.target.value)} aria-label="Gym filtern">
           <option value="">Alle Gyms</option>
-          {[...lookup.gyms.values()].map((g) => (
+          {filterGyms.map((g) => (
             <option key={g.id} value={g.id}>
               {g.name}
             </option>
