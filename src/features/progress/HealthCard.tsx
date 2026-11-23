@@ -9,6 +9,7 @@ import type { HealthDay } from '../../db/types';
 import { fmtDate, fmtNumber, fmtShortDate } from '../../domain/units';
 import { Button, Card, Modal, Tabs } from '../../components/ui';
 import { ProgressChart } from './ProgressChart';
+import { HealthBars } from './HealthBars';
 import type { WorkerOut } from '../../workers/healthExport.worker';
 
 type Metric = 'steps' | 'activeKcal' | 'vo2max' | 'restingHr';
@@ -40,7 +41,8 @@ export function HealthCard() {
   const chartData = useMemo(() => {
     if (!days) return [];
     const m = METRICS.find((x) => x.value === metric)!;
-    const from = m.bars ? daysAgo(29) : daysAgo(365);
+    // Balken: alle Tage (Diagramm fasst selbst nach Tag/Woche/Monat zusammen); Linien: 12 Monate
+    const from = m.bars ? '0000-00-00' : daysAgo(365);
     return days.filter((d) => d.date >= from && d[metric] !== undefined).map((d) => ({ date: d.date, value: d[metric]! }));
   }, [days, metric]);
 
@@ -97,7 +99,6 @@ export function HealthCard() {
   const vo2 = latest(days, 'vo2max');
   const rhr = latest(days, 'restingHr');
   const lastUpdate = days.reduce((a, d) => Math.max(a, d.updatedAt), 0);
-  const maxBar = Math.max(1, ...chartData.map((d) => d.value));
 
   return (
     <Card className="space-y-3">
@@ -119,23 +120,7 @@ export function HealthCard() {
           {chartData.length === 0 ? (
             <p className="text-sm text-slate-500">Keine Werte für {m.label}.</p>
           ) : m.bars ? (
-            <div>
-              <div className="flex h-28 items-end gap-0.5">
-                {chartData.map((d) => (
-                  <div
-                    key={d.date}
-                    className="flex-1 rounded-t bg-emerald-500"
-                    style={{ height: `${(d.value / maxBar) * 100}%`, minHeight: 2 }}
-                    title={`${fmtDate(isoToTs(d.date))}: ${fmtNumber(d.value, 0)} ${m.unit}`}
-                  />
-                ))}
-              </div>
-              <div className="mt-1 flex justify-between text-[10px] text-slate-500">
-                <span>{fmtShortDate(isoToTs(chartData[0].date))}</span>
-                <span>max {fmtNumber(maxBar, 0)}</span>
-                <span>{fmtShortDate(isoToTs(chartData.at(-1)!.date))}</span>
-              </div>
-            </div>
+            <HealthBars key={metric} data={chartData} unit={m.unit} label={m.label} />
           ) : chartData.length >= 2 ? (
             <ProgressChart
               format={(v) => `${fmtNumber(v, 1)} ${m.unit}`}
