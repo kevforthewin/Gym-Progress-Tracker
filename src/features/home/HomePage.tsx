@@ -3,13 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../../db/schema';
 import { seedExampleData } from '../../db/seed';
 import { getSetting } from '../../db/repositories/settings';
-import { activeSession, lastSessionForDays, recentSessions } from '../../db/repositories/sessions';
-import { daysForPlan } from '../../db/repositories/plans';
-import { nextPlanDay } from '../../domain/planRotation';
+import { activeSession, recentSessions } from '../../db/repositories/sessions';
+import { listGyms } from '../../db/repositories/gyms';
 import { fmtDate } from '../../domain/units';
 import { useLookup } from '../../hooks/useLookup';
 import { Button, Card, EmptyState, PageHeader } from '../../components/ui';
 import { StatusOverview } from './StatusOverview';
+import { StartCard } from './StartCard';
 
 const BACKUP_REMINDER_DAYS = 14;
 
@@ -17,21 +17,21 @@ export function HomePage() {
   const nav = useNavigate();
   const lookup = useLookup();
   const data = useLiveQuery(async () => {
-    const [gymCount, active, recent, activePlanId, lastBackupAt, sessionCount] = await Promise.all([
+    const [gymCount, gyms, active, recent, activePlanId, lastBackupAt, sessionCount, plans, days] = await Promise.all([
       db.gyms.count(),
+      listGyms(),
       activeSession(),
       recentSessions(5),
       getSetting('activePlanId'),
       getSetting('lastBackupAt'),
       db.sessions.count(),
+      db.plans.orderBy('order').toArray(),
+      db.planDays.toArray(),
     ]);
-    const plan = (activePlanId && (await db.plans.get(activePlanId))) || (await db.plans.orderBy('order').first());
-    const days = plan ? await daysForPlan(plan.id) : [];
-    const lastInPlan = await lastSessionForDays(days.map((d) => d.id));
-    const next = nextPlanDay(days, lastInPlan?.planDayId);
-    const gymId = recent.find((s) => s.gymId)?.gymId ?? (await db.gyms.toCollection().first())?.id;
-    const nextCount = next ? await db.planDayExercises.where('planDayId').equals(next.id).count() : 0;
-    return { gymCount, active, recent, plan, next, nextCount, gymId, lastBackupAt, sessionCount };
+    // Aktiver Plan zuerst, damit seine Tage oben stehen
+    plans.sort((a, b) => (a.id === activePlanId ? -1 : b.id === activePlanId ? 1 : 0));
+    const lastGymId = recent[0]?.gymId;
+    return { gymCount, gyms, active, recent, lastBackupAt, sessionCount, plans, days, lastGymId };
   });
 
   if (!data || !lookup) return null;
@@ -64,7 +64,6 @@ export function HomePage() {
     <>
       <PageHeader title="Training" />
       <div className="space-y-4">
-        <StatusOverview />
         {data.active && (
           <Card className="border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20">
             <p className="text-sm text-slate-600 dark:text-slate-300">Laufendes Training</p>
@@ -78,39 +77,17 @@ export function HomePage() {
           </Card>
         )}
 
-        {!data.active && (
-          <Card>
-            <p className="text-sm text-slate-500">Nächstes Training{data.plan ? ` · ${data.plan.name}` : ''}</p>
-            {data.next ? (
-              <>
-                <p className="text-2xl font-bold">{data.next.name}</p>
-                <p className="text-sm text-slate-500">
-                  {data.nextCount} Übungen · {lookup.gyms.get(data.gymId ?? '')?.name}
-                </p>
-                <Button
-                  className="mt-3 w-full"
-                  onClick={() => nav(`/session/start?day=${data.next!.id}&gym=${data.gymId ?? ''}`)}
-                >
-                  Training starten
-                </Button>
-                <div className="mt-2 flex justify-center gap-4 text-sm">
-                  <Link to="/session/start" className="text-emerald-600 dark:text-emerald-400">
-                    Anderen Tag / Gym
-                  </Link>
-                  <Link to="/quick" className="text-emerald-600 dark:text-emerald-400">
-                    ✍️ Per Text eintragen
-                  </Link>
-                </div>
-              </>
-            ) : (
-              <EmptyState title="Noch kein Trainingsplan">
-                <Button variant="secondary" onClick={() => nav('/manage?tab=plans')}>
-                  Plan anlegen
-                </Button>
-              </EmptyState>
-            )}
-          </Card>
+        {data.days.length === 0 && data.plans.length === 0 ? (
+          <EmptyState title="Noch kein Trainingsplan">
+            <Button variant="secondary" onClick={() => nav('/manage?tab=plans')}>
+              Plan anlegen
+            </Button>
+          </EmptyState>
+        ) : (
+          <StartCard gyms={data.gyms} plans={data.plans} days={data.days} lastGymId={data.lastGymId} />
         )}
+
+        <StatusOverview />
 
         {backupDue && (
           <Card className="border-amber-400 bg-amber-50 text-sm dark:bg-amber-900/20">
