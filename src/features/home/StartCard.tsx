@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { startSession } from '../../db/repositories/sessions';
 import type { Gym, PlanDay, Plan } from '../../db/types';
 import { Button, Card } from '../../components/ui';
@@ -31,7 +31,11 @@ export function StartCard({ gyms, plans, days, lastGymId }: Props) {
     nav(`/session/${s.id}`);
   };
 
-  const multiPlan = plans.length > 1;
+  // Trainingstage nur einmal pro Name anzeigen (erster Plan = aktiver Plan hat Vorrang)
+  const options: PlanDay[] = [];
+  for (const p of plans)
+    for (const d of days.filter((x) => x.planId === p.id).sort((a, b) => a.order - b.order))
+      if (!options.some((o) => o.name.trim().toLowerCase() === d.name.trim().toLowerCase())) options.push(d);
 
   return (
     <Card className="space-y-3">
@@ -52,21 +56,11 @@ export function StartCard({ gyms, plans, days, lastGymId }: Props) {
             <option value="" disabled>
               wählen …
             </option>
-            {plans.map((p) => {
-              const list = days.filter((d) => d.planId === p.id).sort((a, b) => a.order - b.order);
-              const opts = list.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ));
-              return multiPlan ? (
-                <optgroup key={p.id} label={p.name}>
-                  {opts}
-                </optgroup>
-              ) : (
-                opts
-              );
-            })}
+            {options.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
             <option value={FREE}>Freies Training</option>
           </select>
         </label>
@@ -74,9 +68,6 @@ export function StartCard({ gyms, plans, days, lastGymId }: Props) {
       <Button className="w-full" disabled={!gymId || !dayId || busy} onClick={start}>
         Training starten
       </Button>
-      <Link to="/quick" className="block text-center text-sm text-emerald-600 dark:text-emerald-400">
-        ✍️ Training per Text eintragen
-      </Link>
     </Card>
   );
 }

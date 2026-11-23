@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/schema';
 import { downloadBackup, importData } from '../../db/backup';
 import { getSetting } from '../../db/repositories/settings';
-import { isAppBackup, mergeAppBackup, parseSessionsFile, type ImportSession } from '../../db/addSessions';
+import { backupToImportSessions, isAppBackup, parseSessionsFile, type ImportSession } from '../../db/addSessions';
 import { AddSessionsDialog } from './AddSessionsDialog';
 import { fmtDate } from '../../domain/units';
 import { Button, Card, PageHeader } from '../../components/ui';
@@ -34,12 +34,8 @@ export function SettingsPage() {
   const onAdd = async (file: File) => {
     try {
       const json = JSON.parse(await file.text());
-      if (isAppBackup(json)) {
-        const n = await mergeAppBackup(json);
-        setMsg(`✅ ${n} fehlende Datensätze aus dem Backup ergänzt.`);
-        return;
-      }
-      setPending(parseSessionsFile(json));
+      // App-Backups laufen ebenfalls über die Namens-Zuordnung -> keine doppelten Gyms/Pläne/Übungen
+      setPending(isAppBackup(json) ? backupToImportSessions(json) : parseSessionsFile(json));
     } catch (e) {
       setMsg(`❌ ${(e as Error).message}`);
     }

@@ -10,6 +10,7 @@ import { useLookup } from '../../hooks/useLookup';
 import { Button, Card, EmptyState, PageHeader } from '../../components/ui';
 import { StatusOverview } from './StatusOverview';
 import { StartCard } from './StartCard';
+import { findDuplicates } from '../../db/dedupe';
 
 const BACKUP_REMINDER_DAYS = 14;
 
@@ -31,7 +32,8 @@ export function HomePage() {
     // Aktiver Plan zuerst, damit seine Tage oben stehen
     plans.sort((a, b) => (a.id === activePlanId ? -1 : b.id === activePlanId ? 1 : 0));
     const lastGymId = recent[0]?.gymId;
-    return { gymCount, gyms, active, recent, lastBackupAt, sessionCount, plans, days, lastGymId };
+    const duplicates = (await findDuplicates()).total;
+    return { gymCount, gyms, active, recent, lastBackupAt, sessionCount, plans, days, lastGymId, duplicates };
   });
 
   if (!data || !lookup) return null;
@@ -88,6 +90,15 @@ export function HomePage() {
         )}
 
         <StatusOverview />
+
+        {data.duplicates > 0 && (
+          <Card className="border-amber-400 bg-amber-50 text-sm dark:bg-amber-900/20">
+            ⚠️ Es gibt doppelte Einträge (z. B. Pläne oder Übungen).{' '}
+            <Link to="/manage" className="font-semibold underline">
+              Unter Verwalten zusammenführen
+            </Link>
+          </Card>
+        )}
 
         {backupDue && (
           <Card className="border-amber-400 bg-amber-50 text-sm dark:bg-amber-900/20">

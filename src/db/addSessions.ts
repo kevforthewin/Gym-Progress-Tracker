@@ -484,3 +484,40 @@ export function textToImportSession(
 ): ImportSession {
   return { key: 'quick', date: opts.date, gymName: opts.gymName, workoutType: opts.workoutType, exercises };
 }
+
+/** App-Backup in Trainings umwandeln, damit es über die Namens-Zuordnung (ohne Duplikate) ergänzt werden kann. */
+export function backupToImportSessions(data: unknown): ImportSession[] {
+  validateBackup(data);
+  const t = data.tables as unknown as {
+    gyms?: Gym[]; stations?: Station[]; planDays?: PlanDay[]; sessions?: Session[]; sets?: SetEntry[];
+  };
+  const gym = new Map((t.gyms ?? []).map((g) => [g.id, g.name]));
+  const station = new Map((t.stations ?? []).map((s) => [s.id, s.name]));
+  const day = new Map((t.planDays ?? []).map((d) => [d.id, d.name]));
+  const byId = new Map<string, SetEntry[]>();
+  for (const x of t.sets ?? []) byId.set(x.sessionId, [...(byId.get(x.sessionId) ?? []), x]);
+  const iso = (ts: number) => {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const out: ImportSession[] = [];
+  for (const s of [...(t.sessions ?? [])].sort((a, b) => a.startedAt - b.startedAt)) {
+    const sets = (byId.get(s.id) ?? []).filter((x) => x.reps).sort((a, b) => a.createdAt - b.createdAt);
+    if (!sets.length || !gym.get(s.gymId)) continue;
+    const exercises: ImportExercise[] = [];
+    for (const x of sets) {
+      const name = station.get(x.stationId) ?? '?';
+      let e = exercises.find((y) => y.name === name);
+      if (!e) exercises.push((e = { name, sets: [] }));
+      e.sets.push({
+        weightKg: x.weightKg ?? 0,
+        reps: x.reps!,
+        warmup: x.isWarmup,
+        ...(x.excluded ? { excluded: true, excludeReason: x.excludeReason } : {}),
+      });
+    }
+    out.push({ key: `b${out.length}`, date: iso(s.startedAt), gymName: gym.get(s.gymId)!, workoutType: day.get(s.planDayId ?? ''), exercises });
+  }
+  if (!out.length) throw new Error('Das Backup enthält keine Trainings.');
+  return out;
+}

@@ -10,6 +10,8 @@ import type { Exercise } from '../../db/types';
 import { EXERCISE_TYPE_LABEL } from '../../domain/labels';
 import { Button, Card, EmptyState, Modal, PageHeader, Tabs } from '../../components/ui';
 import { ExerciseForm } from './ExerciseForm';
+import { findDuplicates, mergeDuplicates, type DuplicateReport } from '../../db/dedupe';
+import { downloadBackup } from '../../db/backup';
 
 type Tab = 'gyms' | 'exercises' | 'plans';
 
@@ -19,6 +21,17 @@ export function ManagePage() {
   return (
     <>
       <PageHeader title="Verwalten" />
+      <DuplicatesNotice />
+      <Link
+        to="/quick"
+        className="mb-4 flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-sm dark:border-slate-700"
+      >
+        <span>
+          ✍️ <span className="font-medium">Training nachtragen</span>
+          <span className="block text-xs text-slate-500">Vergessenes Training als Text eingeben</span>
+        </span>
+        <span className="text-slate-400">›</span>
+      </Link>
       <Tabs
         value={tab}
         onChange={(t) => setParams({ tab: t }, { replace: true })}
@@ -199,4 +212,49 @@ function PlansTab() {
       <p className="mt-3 text-xs text-slate-500">Der markierte Plan bestimmt das „Nächste Training" auf der Startseite.</p>
     </>
   );
+}
+
+function DuplicatesNotice() {
+  const report = useLiveQuery(() => findDuplicates());
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<DuplicateReport | null>(null);
+  if (done)
+    return (
+      <Card className="mb-4 border-emerald-500 text-sm">
+        ✅ Zusammengeführt: {describe(done)}.
+      </Card>
+    );
+  if (!report || report.total === 0) return null;
+  const run = async () => {
+    if (!confirm('Doppelte Einträge zusammenführen? Vorher wird automatisch ein Backup heruntergeladen.')) return;
+    setBusy(true);
+    try {
+      await downloadBackup();
+      setDone(await mergeDuplicates());
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card className="mb-4 space-y-2 border-amber-400 text-sm">
+      <p>
+        ⚠️ <strong>Doppelte Einträge gefunden:</strong> {describe(report)}. Vermutlich wurde ein Backup zusätzlich eingespielt.
+      </p>
+      <Button className="w-full" disabled={busy} onClick={run}>
+        Zusammenführen
+      </Button>
+    </Card>
+  );
+}
+
+function describe(r: DuplicateReport) {
+  const parts: [number, string][] = [
+    [r.gyms, 'Gym(s)'],
+    [r.plans, 'Plan/Pläne'],
+    [r.planDays, 'Trainingstag(e)'],
+    [r.exercises, 'Übung(en)'],
+    [r.stations, 'Gerät(e)'],
+    [r.sessions, 'Training(s)'],
+  ];
+  return parts.filter(([n]) => n > 0).map(([n, l]) => `${n} ${l}`).join(', ') || 'nichts';
 }
