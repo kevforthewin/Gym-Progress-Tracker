@@ -7,12 +7,14 @@ import { addWeeks, isoWeek, weekStart } from '../../domain/insights';
 import { fmtDate, fmtNumber, parseNum } from '../../domain/units';
 import { Button, Card, Field } from '../../components/ui';
 import { ProgressChart } from './ProgressChart';
+import { HealthCard } from './HealthCard';
 
 const CARDIO_KINDS = ['Laufband', 'Crosstrainer', 'Fahrrad', 'Rudergerät', 'Stepper', 'Zone 2', 'Spazieren', 'Schwimmen'];
 
 export function BodyView() {
   return (
     <div className="space-y-4">
+      <HealthCard />
       <BodyweightCard />
       <CardioCard />
     </div>
@@ -187,6 +189,8 @@ function CardioCard() {
                 {fmtNumber(e.durationMin, 0)} min
                 {e.distanceKm ? ` · ${fmtNumber(e.distanceKm, 2)} km` : ''}
                 {e.avgHr ? ` · ${e.avgHr} bpm` : ''}
+                {e.kcal ? ` · ${e.kcal} kcal` : ''}
+                {e.source === 'health' && <span title="aus Apple Health"> ⌚</span>}
                 <button type="button" className="ml-3 text-slate-400" aria-label="Eintrag löschen" onClick={() => deleteCardio(e.id)}>
                   ✕
                 </button>

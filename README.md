@@ -24,6 +24,11 @@ mit automatischem **Ziel für das nächste Training** (doppelte Progression) und
 - **Status** auf der Startseite: Steigern, Bestwerte (7 Tage), Stagniert, Deload, Wochenbilanz.
 - **Wochen-Volumen**: Arbeitssätze pro Muskelgruppe und Woche (Orientierung 10–20).
 - **Körpergewicht & Cardio**: Verlauf, Minuten pro Woche.
+- **Apple Health** (Fortschritt → Körper & Cardio): Schritte, aktive kcal, VO₂max, Ruhepuls, Gewicht und Cardio-Workouts.
+  - laufend per iOS-Kurzbefehl → Zwischenablage → „📋 Einlesen“ (Zeilen wie `steps;2026-11-22;8543`, Anleitung in der App)
+  - Vergangenheit per Health-Export (`Export.zip`), wird im Web-Worker gestreamt; Schritte je Tag = Maximum über Quellen
+    (iPhone/Watch nicht doppelt), Krafttraining-Workouts werden nicht als Cardio übernommen, Workouts nie doppelt.
+  - Web-Apps haben keinen direkten HealthKit-Zugriff – dafür bräuchte es eine native iOS-App.
 - **Trainings hinzufügen**: Trainings aus einer JSON-Datei anhängen, ohne Daten zu löschen (siehe unten).
 
 ## Trainings per Datei hinzufügen

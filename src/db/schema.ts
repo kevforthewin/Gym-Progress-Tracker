@@ -3,6 +3,7 @@ import { guessMuscleGroup } from '../domain/exerciseDefaults';
 import type {
   BodyweightEntry,
   CardioEntry,
+  HealthDay,
   Exercise,
   Gym,
   Plan,
@@ -26,6 +27,7 @@ export class GymDB extends Dexie {
   settings!: EntityTable<Setting, 'key'>;
   bodyweights!: EntityTable<BodyweightEntry, 'id'>;
   cardio!: EntityTable<CardioEntry, 'id'>;
+  health!: EntityTable<HealthDay, 'date'>;
 
   constructor(name = 'gym-progress-tracker') {
     super(name);
@@ -63,6 +65,7 @@ export class GymDB extends Dexie {
           await tx.table('bodyweights').add({ id: newId(), date, weightKg: s.bodyweightKg, createdAt: Date.now() });
         }
       });
+    this.version(3).stores({ health: 'date', cardio: 'id, date, externalId' });
   }
 }
 
@@ -85,6 +88,7 @@ export const ALL_TABLES = [
   'settings',
   'bodyweights',
   'cardio',
+  'health',
 ] as const;
 
 /** Vorbelegung bekannter Alternativ-Gruppen (Name ohne Seitenangabe). */

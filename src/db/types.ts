@@ -111,9 +111,24 @@ export interface CardioEntry {
   durationMin: number;
   distanceKm?: number;
   avgHr?: number;
+  kcal?: number;
   gymId?: string;
   note?: string;
+  /** Herkunft, z. B. 'health' für Apple-Health-Workouts. */
+  source?: 'health';
+  /** Eindeutige ID aus der Quelle (verhindert Doppel-Import). */
+  externalId?: string;
   createdAt: number;
+}
+
+/** Tageswerte aus Apple Health (ein Eintrag pro Tag). */
+export interface HealthDay {
+  date: string; // ISO yyyy-mm-dd
+  steps?: number;
+  activeKcal?: number;
+  vo2max?: number;
+  restingHr?: number;
+  updatedAt: number;
 }
 
 export interface Setting {

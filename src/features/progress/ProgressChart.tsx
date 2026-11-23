@@ -61,7 +61,16 @@ export function ProgressChart({
             contentStyle={{ borderRadius: 8, fontSize: 13, color: '#f1f5f9', background: '#0f172a', border: '1px solid #334155' }}
             itemStyle={{ color: '#f1f5f9' }}
           />
-          <Line type="monotone" dataKey="value" stroke={LINE} strokeWidth={2} dot={<Dot />} activeDot={{ r: 7 }} isAnimationActive={false} />
+          {/* Viele Punkte (z. B. ein Jahr Health-Daten): nur Linie, Punkte erst beim Antippen */}
+          <Line
+            type="monotone"
+            dataKey="value"
+            stroke={LINE}
+            strokeWidth={2}
+            dot={data.length > 40 ? false : <Dot />}
+            activeDot={{ r: 7 }}
+            isAnimationActive={false}
+          />
         </LineChart>
       </ResponsiveContainer>
     </div>
