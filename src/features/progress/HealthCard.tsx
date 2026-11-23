@@ -1,16 +1,14 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/schema';
-import { applyHealthImport, type HealthApplyResult } from '../../db/repositories/health';
 import { isoDate } from '../../db/repositories/body';
 import { isoToTs } from '../../db/addSessions';
-import { parseShortcutText, type HealthImport } from '../../domain/health';
 import type { HealthDay } from '../../db/types';
 import { fmtDate, fmtNumber, fmtShortDate } from '../../domain/units';
-import { Button, Card, Modal, Tabs } from '../../components/ui';
+import { Card, Tabs } from '../../components/ui';
 import { ProgressChart } from './ProgressChart';
 import { HealthBars } from './HealthBars';
-import type { WorkerOut } from '../../workers/healthExport.worker';
 
 type Metric = 'steps' | 'activeKcal' | 'vo2max' | 'restingHr';
 const METRICS: { value: Metric; label: string; unit: string; bars: boolean }[] = [
@@ -31,12 +29,6 @@ const latest = (days: HealthDay[], key: Metric) => [...days].reverse().find((d) 
 export function HealthCard() {
   const days = useLiveQuery(() => db.health.orderBy('date').toArray());
   const [metric, setMetric] = useState<Metric>('steps');
-  const [msg, setMsg] = useState<string | null>(null);
-  const [paste, setPaste] = useState<string | null>(null);
-  const [progress, setProgress] = useState<number | null>(null);
-  const [guide, setGuide] = useState(false);
-  const [range, setRange] = useState<'all' | '365' | '90'>('all');
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const chartData = useMemo(() => {
     if (!days) return [];
@@ -47,54 +39,6 @@ export function HealthCard() {
   }, [days, metric]);
 
   if (!days) return null;
-
-  const report = (r: HealthApplyResult) =>
-    setMsg(
-      `✅ ${r.days} Tag(e)` +
-        (r.weights ? `, ${r.weights}× Gewicht` : '') +
-        (r.workouts ? `, ${r.workouts} Workout(s) als Cardio` : '') +
-        (r.skippedWorkouts ? ` (${r.skippedWorkouts} schon vorhanden)` : '') +
-        ' übernommen.',
-    );
-
-  const importText = async (text: string) => {
-    const data = parseShortcutText(text);
-    if (!Object.keys(data.days).length && !Object.keys(data.weights).length && !data.workouts.length) {
-      setMsg('❌ Keine Health-Daten erkannt. Hast du den Kurzbefehl vorher ausgeführt?');
-      return;
-    }
-    report(await applyHealthImport(data));
-    setPaste(null);
-  };
-
-  const fromClipboard = async () => {
-    setMsg(null);
-    try {
-      const text = await navigator.clipboard.readText();
-      await importText(text);
-    } catch {
-      // Kein Zugriff -> manuell einfügen
-      setPaste('');
-    }
-  };
-
-  const fromExport = (file: File) => {
-    setMsg(null);
-    setProgress(0);
-    const worker = new Worker(new URL('../../workers/healthExport.worker.ts', import.meta.url), { type: 'module' });
-    worker.onmessage = async (e: MessageEvent<WorkerOut>) => {
-      const m = e.data;
-      if (m.type === 'progress') setProgress(m.pct);
-      else {
-        worker.terminate();
-        setProgress(null);
-        if (m.type === 'error') setMsg(`❌ ${m.message}`);
-        else report(await applyHealthImport(m.result as HealthImport));
-      }
-    };
-    worker.postMessage({ file, since: range === 'all' ? undefined : daysAgo(Number(range)) });
-  };
-
   const m = METRICS.find((x) => x.value === metric)!;
   const vo2 = latest(days, 'vo2max');
   const rhr = latest(days, 'restingHr');
@@ -104,10 +48,17 @@ export function HealthCard() {
     <Card className="space-y-3">
       <div className="flex items-baseline justify-between">
         <h2 className="font-semibold">Apple Health</h2>
-        <span className="text-xs text-slate-500">{lastUpdate ? `aktualisiert ${fmtDate(lastUpdate)}` : 'noch keine Daten'}</span>
+        <span className="text-xs text-slate-500">{lastUpdate ? `aktualisiert ${fmtDate(lastUpdate)}` : ''}</span>
       </div>
-
-      {days.length > 0 && (
+      {days.length === 0 ? (
+        <p className="text-sm text-slate-500">
+          Noch keine Health-Daten. Täglich über <strong>Heute → ⌚ Health einlesen</strong>, die Vergangenheit über{' '}
+          <Link to="/settings/health" className="text-emerald-600 underline dark:text-emerald-400">
+            Einstellungen → Apple Health
+          </Link>
+          .
+        </p>
+      ) : (
         <>
           <dl className="grid grid-cols-4 gap-2 text-center">
             <Kpi label="Ø Schritte 7 T." value={avg(days, 'steps', daysAgo(6))} digits={0} />
@@ -115,7 +66,6 @@ export function HealthCard() {
             <Kpi label={`VO₂max${vo2 ? ` · ${fmtShortDate(isoToTs(vo2.date))}` : ''}`} value={vo2?.vo2max} digits={1} />
             <Kpi label="Ø Ruhepuls 7 T." value={avg(days, 'restingHr', daysAgo(6)) ?? rhr?.restingHr} digits={0} />
           </dl>
-
           <Tabs value={metric} onChange={setMetric} options={METRICS.map(({ value, label }) => ({ value, label }))} />
           {chartData.length === 0 ? (
             <p className="text-sm text-slate-500">Keine Werte für {m.label}.</p>
@@ -131,62 +81,6 @@ export function HealthCard() {
           )}
         </>
       )}
-
-      <div className="grid grid-cols-2 gap-2">
-        <Button onClick={fromClipboard}>📋 Einlesen</Button>
-        <Button variant="secondary" onClick={() => fileRef.current?.click()} disabled={progress !== null}>
-          📦 Health-Export
-        </Button>
-      </div>
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".zip,.xml,application/zip,text/xml"
-        className="hidden"
-        data-testid="health-export-input"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) fromExport(f);
-          e.target.value = '';
-        }}
-      />
-      <div className="flex items-center justify-between text-xs text-slate-500">
-        <button type="button" className="font-semibold text-emerald-600 dark:text-emerald-400" onClick={() => setGuide(true)}>
-          Kurzbefehl einrichten
-        </button>
-        <label className="flex items-center gap-1">
-          Export-Zeitraum
-          <select className="rounded border border-slate-300 bg-transparent px-1 py-0.5 dark:border-slate-600" value={range} onChange={(e) => setRange(e.target.value as typeof range)}>
-            <option value="all">alles</option>
-            <option value="365">12 Monate</option>
-            <option value="90">3 Monate</option>
-          </select>
-        </label>
-      </div>
-
-      {progress !== null && (
-        <div>
-          <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700">
-            <div className="h-2 rounded-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
-          </div>
-          <p className="mt-1 text-xs text-slate-500">Lese Health-Export … {progress} % (kann bei großen Exporten 1–2 Minuten dauern)</p>
-        </div>
-      )}
-
-      {paste !== null && (
-        <div className="space-y-2">
-          <p className="text-xs text-slate-500">Zugriff auf die Zwischenablage nicht möglich – bitte hier einfügen (lange tippen → Einsetzen):</p>
-          <textarea className="input font-mono text-xs" rows={4} value={paste} onChange={(e) => setPaste(e.target.value)} />
-          <Button className="w-full" disabled={!paste.trim()} onClick={() => importText(paste)}>
-            Übernehmen
-          </Button>
-        </div>
-      )}
-      {msg && <p className="text-sm">{msg}</p>}
-
-      <Modal open={guide} onClose={() => setGuide(false)} title="Kurzbefehl einrichten">
-        <ShortcutGuide />
-      </Modal>
     </Card>
   );
 }
@@ -204,7 +98,7 @@ const Code = ({ children }: { children: string }) => (
   <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[12px] dark:bg-slate-900">{children}</code>
 );
 
-function ShortcutGuide() {
+export function ShortcutGuide() {
   const blocks: [string, string, string, boolean][] = [
     ['Schritte', 'steps', 'letzten 7 Tage', true],
     ['Aktive Energie', 'kcal', 'letzten 7 Tage', true],
@@ -216,7 +110,7 @@ function ShortcutGuide() {
     <div className="space-y-3 text-sm">
       <p className="text-slate-500">
         Einmalig in der App <strong>Kurzbefehle</strong> anlegen (ca. 10 Min.). Danach: Kurzbefehl starten → diese App öffnen →
-        „📋 Einlesen“. Namen der Aktionen können je nach iOS-Version leicht abweichen.
+        <strong>Heute → ⌚ Health einlesen</strong>. Namen der Aktionen können je nach iOS-Version leicht abweichen.
       </p>
       <ol className="list-decimal space-y-2 pl-5">
         <li>Kurzbefehle → „+“ → Name z. B. <strong>„Gym Health“</strong>.</li>
@@ -277,13 +171,13 @@ function ShortcutGuide() {
           Falls bei „Health-Beispiele suchen“ der Typ <em>Trainings</em> verfügbar ist: gleicher Aufbau, Text-Zeile
           <br />
           <Code>workout;DATUM;ART;DAUER_MIN;DISTANZ_KM;KCAL</Code> (Distanz/kcal dürfen leer bleiben). Krafttraining kannst du weglassen. Sonst
-          kommen Workouts über den Health-Export (📦) rein – doppelte werden erkannt.
+          kommen Workouts über den Health-Export rein – doppelte werden erkannt.
         </p>
       </details>
       <details className="rounded-lg bg-slate-50 p-2 dark:bg-slate-900/50">
         <summary className="cursor-pointer font-medium">Health-Export (Vergangenheit)</summary>
         <p className="mt-1 text-slate-500">
-          Health-App → Profilbild → <strong>„Alle Gesundheitsdaten exportieren“</strong> → „In Dateien sichern“. Dann hier „📦 Health-Export“ und die
+          Health-App → Profilbild → <strong>„Alle Gesundheitsdaten exportieren“</strong> → „In Dateien sichern“. Dann unter Einstellungen → Apple Health die
           <Code>Export.zip</Code> wählen. Schritte, aktive Energie, VO₂max, Ruhepuls, Gewicht und Cardio-Workouts werden übernommen (Krafttraining
           nicht – das loggst du in der App).
         </p>

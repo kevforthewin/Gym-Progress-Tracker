@@ -1,39 +1,77 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { db } from '../../db/schema';
-import { fmtDate } from '../../domain/units';
+import { deleteCardio } from '../../db/repositories/body';
+import { isoToTs } from '../../db/addSessions';
+import type { CardioEntry } from '../../db/types';
+import { fmtDate, fmtNumber } from '../../domain/units';
 import { useLookup } from '../../hooks/useLookup';
-import { Card, EmptyState, PageHeader } from '../../components/ui';
+import { Button, Card, EmptyState, Modal, PageHeader, Tabs } from '../../components/ui';
+
+type Filter = 'all' | 'training' | 'cardio';
+type Item =
+  | { kind: 'training'; ts: number; id: string; gymId: string; planDayId?: string; work: number; stations: number; running: boolean }
+  | { kind: 'cardio'; ts: number; entry: CardioEntry };
 
 export function HistoryPage() {
   const lookup = useLookup();
+  const [params, setParams] = useSearchParams();
+  const filter = (params.get('type') as Filter) || 'all';
   const [gymId, setGymId] = useState('');
-  const sessions = useLiveQuery(async () => {
-    const all = await db.sessions.orderBy('startedAt').reverse().toArray();
-    const filtered = gymId ? all.filter((s) => s.gymId === gymId) : all;
-    const counts = await Promise.all(
-      filtered.map(async (s) => {
-        const sets = await db.sets.where('sessionId').equals(s.id).toArray();
-        return { work: sets.filter((x) => !x.isWarmup).length, stations: new Set(sets.map((x) => x.stationId)).size };
-      }),
-    );
-    return filtered.map((s, i) => ({ ...s, ...counts[i] }));
-  }, [gymId]);
+  const [cardio, setCardio] = useState<CardioEntry | null>(null);
 
-  if (!lookup || !sessions) return null;
+  const items = useLiveQuery(async () => {
+    const [sessions, sets, cardioEntries] = await Promise.all([db.sessions.toArray(), db.sets.toArray(), db.cardio.toArray()]);
+    const bySession = new Map<string, { work: number; stations: Set<string> }>();
+    for (const s of sets) {
+      const e = bySession.get(s.sessionId) ?? { work: 0, stations: new Set<string>() };
+      if (!s.isWarmup) e.work++;
+      e.stations.add(s.stationId);
+      bySession.set(s.sessionId, e);
+    }
+    const list: Item[] = [
+      ...sessions.map((s) => ({
+        kind: 'training' as const,
+        ts: s.startedAt,
+        id: s.id,
+        gymId: s.gymId,
+        planDayId: s.planDayId,
+        work: bySession.get(s.id)?.work ?? 0,
+        stations: bySession.get(s.id)?.stations.size ?? 0,
+        running: !s.finishedAt,
+      })),
+      // Cardio am Tagesende einsortieren, damit es nach dem Training desselben Tages steht
+      ...cardioEntries.map((c) => ({ kind: 'cardio' as const, ts: isoToTs(c.date) + 5 * 3600_000, entry: c })),
+    ];
+    return list.sort((a, b) => b.ts - a.ts);
+  });
 
-  // Nach Monat gruppieren
-  const groups = new Map<string, typeof sessions>();
-  for (const s of sessions) {
-    const key = new Date(s.startedAt).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
-    groups.set(key, [...(groups.get(key) ?? []), s]);
+  if (!lookup || !items) return null;
+
+  const shown = items.filter(
+    (it) =>
+      (filter === 'all' || it.kind === filter) && (!gymId || (it.kind === 'training' ? it.gymId === gymId : it.entry.gymId === gymId)),
+  );
+  const groups = new Map<string, Item[]>();
+  for (const it of shown) {
+    const key = new Date(it.ts).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    groups.set(key, [...(groups.get(key) ?? []), it]);
   }
 
   return (
     <>
-      <PageHeader title="Historie" />
-      {lookup.gyms.size > 1 && (
+      <PageHeader title="Verlauf" />
+      <Tabs
+        value={filter}
+        onChange={(t) => setParams(t === 'all' ? {} : { type: t }, { replace: true })}
+        options={[
+          { value: 'all', label: 'Alle' },
+          { value: 'training', label: 'Training' },
+          { value: 'cardio', label: 'Cardio' },
+        ]}
+      />
+      {lookup.gyms.size > 1 && filter !== 'cardio' && (
         <select className="input mb-4" value={gymId} onChange={(e) => setGymId(e.target.value)} aria-label="Gym filtern">
           <option value="">Alle Gyms</option>
           {[...lookup.gyms.values()].map((g) => (
@@ -43,40 +81,119 @@ export function HistoryPage() {
           ))}
         </select>
       )}
-      {sessions.length === 0 ? (
-        <EmptyState title="Noch keine Trainings." />
+      {shown.length === 0 ? (
+        <EmptyState title="Noch keine Einträge." />
       ) : (
         <div className="space-y-5">
-          {[...groups].map(([month, list]) => (
-            <section key={month}>
-              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
-                {month} · {list.length}×
-              </h2>
-              <ul className="space-y-2">
-                {list.map((s) => (
-                  <li key={s.id}>
-                    <Link to={`/session/${s.id}`}>
-                      <Card className="flex items-center justify-between py-3">
-                        <div>
-                          <p className="font-medium">{lookup.planDays.get(s.planDayId ?? '')?.name ?? 'Freies Training'}</p>
-                          <p className="text-sm text-slate-500">
-                            {fmtDate(s.startedAt)} · {lookup.gyms.get(s.gymId)?.name}
-                          </p>
-                        </div>
-                        <div className="text-right text-sm text-slate-500">
-                          {s.stations} Übungen
-                          <br />
-                          {s.work} Sätze
-                        </div>
-                      </Card>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
+          {[...groups].map(([month, list]) => {
+            const t = list.filter((x) => x.kind === 'training').length;
+            const c = list.filter((x) => x.kind === 'cardio');
+            const cMin = c.reduce((a, x) => a + (x.kind === 'cardio' ? x.entry.durationMin : 0), 0);
+            return (
+              <section key={month}>
+                <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                  {month} · {t ? `${t} Trainings` : ''}
+                  {t > 0 && c.length > 0 ? ' · ' : ''}
+                  {c.length ? `${fmtNumber(cMin, 0)} min Cardio` : ''}
+                </h2>
+                <ul className="space-y-2">
+                  {list.map((it) =>
+                    it.kind === 'training' ? (
+                      <li key={it.id}>
+                        <Link to={`/session/${it.id}`}>
+                          <Card className="flex items-center justify-between py-3">
+                            <div>
+                              <p className="font-medium">
+                                🏋️ {lookup.planDays.get(it.planDayId ?? '')?.name ?? 'Freies Training'}
+                                {it.running && <span className="chip ml-2 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">läuft</span>}
+                              </p>
+                              <p className="text-sm text-slate-500">
+                                {fmtDate(it.ts)} · {lookup.gyms.get(it.gymId)?.name}
+                              </p>
+                            </div>
+                            <div className="text-right text-sm text-slate-500">
+                              {it.stations} Übungen
+                              <br />
+                              {it.work} Sätze
+                            </div>
+                          </Card>
+                        </Link>
+                      </li>
+                    ) : (
+                      <li key={it.entry.id}>
+                        <button type="button" className="w-full text-left" onClick={() => setCardio(it.entry)}>
+                          <Card className="flex items-center justify-between py-3">
+                            <div>
+                              <p className="font-medium">
+                                🏃 {it.entry.kind}
+                                {it.entry.source === 'health' && <span className="ml-1 text-xs text-slate-500">⌚</span>}
+                              </p>
+                              <p className="text-sm text-slate-500">{fmtDate(isoToTs(it.entry.date))}</p>
+                            </div>
+                            <div className="text-right text-sm text-slate-500">
+                              {fmtNumber(it.entry.durationMin, 0)} min
+                              {it.entry.distanceKm ? (
+                                <>
+                                  <br />
+                                  {fmtNumber(it.entry.distanceKm, 2)} km
+                                </>
+                              ) : null}
+                            </div>
+                          </Card>
+                        </button>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </section>
+            );
+          })}
         </div>
       )}
+
+      <Modal open={!!cardio} onClose={() => setCardio(null)} title={cardio ? `🏃 ${cardio.kind}` : ''}>
+        {cardio && (
+          <div className="space-y-3 text-sm">
+            <dl className="grid grid-cols-2 gap-2">
+              <dt className="text-slate-500">Datum</dt>
+              <dd>{fmtDate(isoToTs(cardio.date))}</dd>
+              <dt className="text-slate-500">Dauer</dt>
+              <dd>{fmtNumber(cardio.durationMin, 0)} min</dd>
+              {cardio.distanceKm ? (
+                <>
+                  <dt className="text-slate-500">Distanz</dt>
+                  <dd>{fmtNumber(cardio.distanceKm, 2)} km</dd>
+                </>
+              ) : null}
+              {cardio.avgHr ? (
+                <>
+                  <dt className="text-slate-500">Ø Puls</dt>
+                  <dd>{cardio.avgHr} bpm</dd>
+                </>
+              ) : null}
+              {cardio.kcal ? (
+                <>
+                  <dt className="text-slate-500">Energie</dt>
+                  <dd>{cardio.kcal} kcal</dd>
+                </>
+              ) : null}
+              <dt className="text-slate-500">Quelle</dt>
+              <dd>{cardio.source === 'health' ? 'Apple Health ⌚' : 'manuell'}</dd>
+            </dl>
+            <Button
+              variant="ghost"
+              className="w-full text-red-600 dark:text-red-400"
+              onClick={async () => {
+                if (!confirm('Cardio-Eintrag löschen?')) return;
+                await deleteCardio(cardio.id);
+                setCardio(null);
+              }}
+            >
+              Eintrag löschen
+            </Button>
+          </div>
+        )}
+      </Modal>
     </>
   );
 }

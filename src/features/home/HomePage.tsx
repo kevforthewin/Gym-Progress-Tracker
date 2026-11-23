@@ -10,6 +10,8 @@ import { useLookup } from '../../hooks/useLookup';
 import { Button, Card, EmptyState, PageHeader } from '../../components/ui';
 import { StatusOverview } from './StatusOverview';
 import { StartCard } from './StartCard';
+import { QuickActions } from './QuickActions';
+import { WeekSummary } from './WeekSummary';
 import { findDuplicates } from '../../db/dedupe';
 
 const BACKUP_REMINDER_DAYS = 14;
@@ -22,7 +24,7 @@ export function HomePage() {
       db.gyms.count(),
       listGyms(),
       activeSession(),
-      recentSessions(5),
+      recentSessions(3),
       getSetting('activePlanId'),
       getSetting('lastBackupAt'),
       db.sessions.count(),
@@ -64,7 +66,7 @@ export function HomePage() {
 
   return (
     <>
-      <PageHeader title="Training" />
+      <PageHeader title="Heute" />
       <div className="space-y-4">
         {data.active && (
           <Card className="border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20">
@@ -89,13 +91,17 @@ export function HomePage() {
           <StartCard gyms={data.gyms} plans={data.plans} days={data.days} lastGymId={data.lastGymId} />
         )}
 
+        <QuickActions />
+
+        <WeekSummary />
+
         <StatusOverview />
 
         {data.duplicates > 0 && (
           <Card className="border-amber-400 bg-amber-50 text-sm dark:bg-amber-900/20">
             ⚠️ Es gibt doppelte Einträge (z. B. Pläne oder Übungen).{' '}
-            <Link to="/manage" className="font-semibold underline">
-              Unter Verwalten zusammenführen
+            <Link to="/settings" className="font-semibold underline">
+              In den Einstellungen zusammenführen
             </Link>
           </Card>
         )}
@@ -103,14 +109,19 @@ export function HomePage() {
         {backupDue && (
           <Card className="border-amber-400 bg-amber-50 text-sm dark:bg-amber-900/20">
             ⚠️ Deine Daten liegen nur auf diesem Gerät.{' '}
-            <Link to="/settings" className="font-semibold underline">
+            <Link to="/settings/backup" className="font-semibold underline">
               Jetzt Backup exportieren
             </Link>
           </Card>
         )}
 
         <section>
-          <h2 className="mb-2 font-semibold">Letzte Trainings</h2>
+          <div className="mb-2 flex items-baseline justify-between">
+            <h2 className="font-semibold">Letzte Trainings</h2>
+            <Link to="/history" className="text-sm text-emerald-600 dark:text-emerald-400">
+              Alle anzeigen ›
+            </Link>
+          </div>
           {data.recent.length === 0 ? (
             <EmptyState title="Noch keine Trainings erfasst" />
           ) : (

@@ -10,6 +10,8 @@ import { ManagePage } from './features/manage/ManagePage';
 import { GymDetailPage } from './features/manage/GymDetailPage';
 import { PlanDetailPage } from './features/manage/PlanDetailPage';
 import { SettingsPage } from './features/settings/SettingsPage';
+import { BackupPage } from './features/settings/BackupPage';
+import { HealthSettingsPage } from './features/settings/HealthSettingsPage';
 
 // Recharts ist groß -> eigener Chunk.
 const ProgressPage = lazy(() => import('./features/progress/ProgressTabs').then((m) => ({ default: m.ProgressPage })));
@@ -29,6 +31,8 @@ export default function App() {
           <Route path="/manage/gym/:id" element={<GymDetailPage />} />
           <Route path="/manage/plan/:id" element={<PlanDetailPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/backup" element={<BackupPage />} />
+          <Route path="/settings/health" element={<HealthSettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

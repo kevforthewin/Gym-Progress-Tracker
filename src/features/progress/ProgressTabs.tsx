@@ -23,7 +23,7 @@ export function ProgressPage() {
         options={[
           { value: 'exercises', label: 'Übungen' },
           { value: 'volume', label: 'Volumen' },
-          { value: 'body', label: 'Körper & Cardio' },
+          { value: 'body', label: 'Körper' },
         ]}
       />
       {tab === 'exercises' && <ExerciseProgress />}

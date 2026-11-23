@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useInsights } from '../../hooks/useInsights';
 import type { StatusItem } from '../../domain/insights';
 import { fmtShortDate } from '../../domain/units';
@@ -16,12 +15,11 @@ const TILES: { key: Key; label: string; icon: string; tone: string }[] = [
 
 export function StatusOverview() {
   const data = useInsights();
-  const nav = useNavigate();
   const [open, setOpen] = useState<Key | null>(null);
   if (!data) return null;
-  const { status, sides, week } = data;
+  const { status, sides } = data;
   const total = status.ready.length + status.prs.length + status.stalled.length + status.deload.length;
-  if (total === 0 && week.sessions === 0 && week.prevSessions === 0 && sides.length === 0) return null;
+  if (total === 0 && sides.length === 0) return null;
 
   const list: StatusItem[] =
     open === 'sides'
@@ -34,23 +32,9 @@ export function StatusOverview() {
         ? status[open]
         : [];
 
-  const delta = week.sets - week.prevSets;
-
   return (
     <Card className="space-y-3">
-      <div className="flex items-baseline justify-between">
-        <h2 className="font-semibold">Status</h2>
-        <button type="button" className="text-xs text-slate-500" onClick={() => nav('/progress?tab=volume')}>
-          Diese Woche: {week.sessions} Trainings · {week.sets} Sätze
-          {week.prevSets > 0 && (
-            <span className={delta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}>
-              {' '}
-              ({delta >= 0 ? '+' : ''}
-              {delta} ggü. Vorwoche)
-            </span>
-          )}
-        </button>
-      </div>
+      <h2 className="font-semibold">Status</h2>
       <div className="grid grid-cols-4 gap-2">
         {TILES.map((t) => {
           const n = status[t.key as Exclude<Key, 'sides'>].length;
