@@ -21,7 +21,7 @@ mit automatischem **Ziel für das nächste Training** (doppelte Progression) und
 - **Gewichtsstufen pro Gerät** (z. B. Matrix 29,8 · 32 · 34,3 …) – Ziel und +/− springen auf echte Werte; „Aus Historie übernehmen“.
 - **Alternativen & Tauschen**: Übungen mit gleicher Alternativ-Gruppe im Training per ⋯ tauschen (z. B. Face Pull ⇄ Reverse Butterfly).
 - **Reihenfolge im Training**: per ⋯ „Als Nächstes“ (hinter die erledigten Übungen) oder ↑/↓ – nur für dieses Training.
-- **Zusammenfassung nach dem Training**: Dauer, Übungen, Sätze, Volumen, neue Bestwerte, gesteigert/gleich/weniger je Gerät, Vergleich mit dem letzten gleichen Trainingstag.
+- **Zusammenfassung nach dem Training**: Übungen, Sätze, Volumen, neue Bestwerte, gesteigert/gleich/weniger je Gerät, Vergleich mit dem letzten gleichen Trainingstag.
 - **Links/rechts in einer Karte** mit Seitenvergleich (schwächere Seite zuerst, Hinweis ab 5 % / Status ab 10 % Unterschied).
 - **Aufbau**: 4 Tabs – *Heute* (Training starten, Schnellaktionen Health/Gewicht/Cardio, Diese Woche, Status), *Verlauf* (Trainings + Cardio), *Fortschritt* (Übungen, Volumen, Körper – nur Auswertung), *Einstellungen* (Pläne, Übungen, Gyms, Importe, Health, Backup).
 - **Freihantel gym-übergreifend**: Übungen mit 🌐 (Lang-/Kurzhantel, Körpergewicht – automatisch erkannt, pro Übung umschaltbar) teilen Historie, Ziel und Auswertungen über alle Gyms; Maschinen bleiben je Gym getrennt.

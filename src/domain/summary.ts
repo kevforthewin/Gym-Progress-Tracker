@@ -110,10 +110,3 @@ export function summarizeSession(items: SummaryExerciseInput[]): SessionSummary 
   res.volumeKg = Math.round(res.volumeKg);
   return res;
 }
-
-/** Dauer in Minuten (null, wenn unplausibel, z. B. vergessen zu beenden). */
-export function sessionMinutes(startedAt: number, finishedAt?: number): number | null {
-  if (!finishedAt) return null;
-  const min = Math.round((finishedAt - startedAt) / 60000);
-  return min > 0 && min <= 300 ? min : null;
-}

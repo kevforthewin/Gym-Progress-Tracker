@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { db } from '../../db/schema';
 import { stationSessions } from '../../db/repositories/sessions';
 import type { SetEntry } from '../../db/types';
-import { sessionMinutes, summarizeSession, type ExerciseSummary, type SessionSummary } from '../../domain/summary';
+import { summarizeSession, type ExerciseSummary, type SessionSummary } from '../../domain/summary';
 import { fmtDate, fmtNumber } from '../../domain/units';
 import { Button, Card, EmptyState, PageHeader } from '../../components/ui';
 
@@ -42,7 +42,7 @@ export function SessionSummaryPage() {
     const summary = summarizeSession(items);
 
     // Letzter gleicher Trainingstag (egal welches Gym)
-    let previous: { date: number; workSets: number; volume: number; minutes: number | null } | null = null;
+    let previous: { date: number; workSets: number; volume: number } | null = null;
     if (session.planDayId) {
       const prev = (await db.sessions.where('planDayId').equals(session.planDayId).toArray())
         .filter((s) => s.startedAt < session.startedAt)
@@ -53,7 +53,6 @@ export function SessionSummaryPage() {
           date: prev.startedAt,
           workSets: ps.length,
           volume: Math.round(ps.reduce((a, s) => a + (s.weightKg ?? 0) * (s.reps ?? 0), 0)),
-          minutes: sessionMinutes(prev.startedAt, prev.finishedAt),
         };
       }
     }
@@ -70,7 +69,6 @@ export function SessionSummaryPage() {
     );
 
   const { session, summary: s, previous } = data;
-  const minutes = sessionMinutes(session.startedAt, session.finishedAt);
 
   return (
     <>
@@ -80,14 +78,13 @@ export function SessionSummaryPage() {
       </p>
 
       <div className="space-y-4">
-        <dl className="grid grid-cols-4 gap-2 text-center">
-          <Tile label="Dauer" value={minutes ? `${minutes}′` : '–'} />
+        <dl className="grid grid-cols-3 gap-2 text-center">
           <Tile label="Übungen" value={String(s.exercises)} />
           <Tile label="Sätze" value={String(s.workSets)} />
           <Tile label="Volumen" value={s.volumeKg >= 10000 ? `${fmtNumber(s.volumeKg / 1000, 1)} t` : `${fmtNumber(s.volumeKg, 0)} kg`} />
         </dl>
 
-        {previous && <Comparison summary={s} minutes={minutes} previous={previous} dayName={data.dayName} />}
+        {previous && <Comparison summary={s} previous={previous} dayName={data.dayName} />}
 
         {s.exercises === 0 ? (
           <EmptyState title="Keine gewerteten Sätze in diesem Training." />
@@ -144,13 +141,11 @@ function Delta({ label, now, before, unit = '', pct = false }: { label: string; 
 
 function Comparison({
   summary,
-  minutes,
   previous,
   dayName,
 }: {
   summary: SessionSummary;
-  minutes: number | null;
-  previous: { date: number; workSets: number; volume: number; minutes: number | null };
+  previous: { date: number; workSets: number; volume: number };
   dayName: string;
 }) {
   return (
@@ -161,7 +156,6 @@ function Comparison({
       <ul className="space-y-1">
         <Delta label="Sätze" now={summary.workSets} before={previous.workSets} />
         <Delta label="Volumen" now={summary.volumeKg} before={previous.volume} unit=" kg" pct />
-        {minutes && previous.minutes && <Delta label="Dauer" now={minutes} before={previous.minutes} unit=" min" />}
       </ul>
     </Card>
   );

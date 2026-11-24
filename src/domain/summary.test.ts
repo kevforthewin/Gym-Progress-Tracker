@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sessionMinutes, summarizeSession } from './summary';
+import { summarizeSession } from './summary';
 import type { WorkSet } from './progression';
 
 const s = (w: number, ...reps: number[]): WorkSet[] => reps.map((r) => ({ weightKg: w, reps: r }));
@@ -42,9 +42,4 @@ describe('summarizeSession', () => {
     ]);
   });
 
-  it('Dauer', () => {
-    expect(sessionMinutes(0, 75 * 60000)).toBe(75);
-    expect(sessionMinutes(0, 9 * 3600000)).toBeNull();
-    expect(sessionMinutes(0)).toBeNull();
-  });
 });
