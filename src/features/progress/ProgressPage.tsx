@@ -156,6 +156,7 @@ export function ExerciseProgress() {
                               <p className="font-medium">{st.name}</p>
                               <p className="text-xs text-slate-500">
                                 {s.length} Sessions · {m.label}
+                                {ex.sharedAcrossGyms && lookup.gyms.size > 1 && ' · 🌐 alle Gyms'}
                               </p>
                             </div>
                             <div className="text-right">
@@ -245,7 +246,12 @@ export function ExerciseProgress() {
               <tbody>
                 {[...counted].reverse().map((g) => (
                   <tr key={g.session.id} className="border-t border-slate-200 align-top dark:border-slate-700">
-                    <td className="whitespace-nowrap py-1.5 pr-2">{fmtDate(g.session.startedAt)}</td>
+                    <td className="whitespace-nowrap py-1.5 pr-2">
+                      {fmtDate(g.session.startedAt)}
+                      {exercise.sharedAcrossGyms && lookup.gyms.size > 1 && (
+                        <span className="block text-[11px] text-slate-500">{lookup.gyms.get(g.session.gymId)?.name.split(/\s+/)[0]}</span>
+                      )}
+                    </td>
                     <td className="py-1.5 pr-2">
                       {g.sets.map((s, i) => (
                         <span key={s.id} className={s.excluded ? 'text-slate-400 line-through' : ''}>

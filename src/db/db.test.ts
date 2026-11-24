@@ -96,3 +96,39 @@ describe('Migration v1 -> v2', () => {
     v2.close();
   });
 });
+
+describe('gym-übergreifende Übungen', () => {
+  it('Freihantel teilt die Historie über Gyms, Maschinen nicht', async () => {
+    const { createGym } = await import('./repositories/gyms');
+    const { createExercise } = await import('./repositories/exercises');
+    const { createStation } = await import('./repositories/stations');
+    const evo = await createGym('EVO');
+    const iron = await createGym('IRON');
+    const bank = await createExercise({ name: 'Bankdrücken', type: 'weight_reps' });
+    const fly = await createExercise({ name: 'Butterfly Matrix', type: 'weight_reps' });
+    expect(bank.sharedAcrossGyms).toBe(true);
+    expect(fly.sharedAcrossGyms).toBe(false);
+    const be = await createStation({ gymId: evo.id, exerciseId: bank.id, name: 'Bankdrücken', weightIncrement: 2.5 });
+    const bi = await createStation({ gymId: iron.id, exerciseId: bank.id, name: 'Bankdrücken', weightIncrement: 2.5 });
+    const fe = await createStation({ gymId: evo.id, exerciseId: fly.id, name: 'Butterfly', weightIncrement: 5 });
+    const fi = await createStation({ gymId: iron.id, exerciseId: fly.id, name: 'Butterfly', weightIncrement: 5 });
+    const s1 = await startSession(evo.id);
+    await addSet({ sessionId: s1.id, stationId: be.id, exerciseId: bank.id, weightKg: 70, reps: 7, isWarmup: false });
+    await addSet({ sessionId: s1.id, stationId: fe.id, exerciseId: fly.id, weightKg: 50, reps: 10, isWarmup: false });
+    const s2 = await startSession(iron.id);
+    await addSet({ sessionId: s2.id, stationId: bi.id, exerciseId: bank.id, weightKg: 70, reps: 8, isWarmup: false });
+    await addSet({ sessionId: s2.id, stationId: fi.id, exerciseId: fly.id, weightKg: 40, reps: 12, isWarmup: false });
+
+    expect((await stationHistory(be.id)).map((h) => h.sets[0].reps)).toEqual([7, 8]); // beide Gyms
+    expect((await stationHistory(bi.id, s2.id)).map((h) => h.sets[0].reps)).toEqual([7]); // aktuelle Session ausgeschlossen
+    expect((await stationHistory(fi.id)).map((h) => h.sets[0].weightKg)).toEqual([40]); // Maschine: nur IRON
+  });
+
+  it('Namensregeln', async () => {
+    const { guessSharedAcrossGyms: g } = await import('../domain/exerciseDefaults');
+    for (const n of ['Bankdrücken', 'Schrägbankdrücken Kurzhantel 30°', 'Schrägbankdrücken Langhantel', 'Schulterdrücken Kurzhantel', 'Hammercurls', 'SZ-Curls', 'Kurzhantel Incline Curl', 'Klimmzüge', 'Vorgebeugtes Shruggen', 'Kurzhantel-Seitheben'])
+      expect([n, g(n)]).toEqual([n, true]);
+    for (const n of ['Hoist Incline Press', 'Butterfly Matrix', 'Hammer Strength Shoulder Press', 'Kabel-Seitheben (links)', 'Latzug', 'Face Pull', 'Trizepsmaschine Matrix', 'Beinpresse', 'Multi Pec'])
+      expect([n, g(n)]).toEqual([n, false]);
+  });
+});

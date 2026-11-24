@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db/schema';
+import { guessSharedAcrossGyms } from '../../domain/exerciseDefaults';
 import type { Exercise, ExerciseType } from '../../db/types';
 import { EXERCISE_TYPE_LABEL } from '../../domain/labels';
 import { Button, Field } from '../../components/ui';
 
-export type ExerciseInput = Pick<Exercise, 'name' | 'type' | 'muscleGroup' | 'notes' | 'alternativeGroup'>;
+export type ExerciseInput = Pick<Exercise, 'name' | 'type' | 'muscleGroup' | 'notes' | 'alternativeGroup' | 'sharedAcrossGyms'>;
 
 export function ExerciseForm({
   initial,
@@ -21,6 +22,9 @@ export function ExerciseForm({
   const [muscleGroup, setMuscle] = useState(initial?.muscleGroup ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [alt, setAlt] = useState(initial?.alternativeGroup ?? '');
+  // Neue Übung: Vorschlag nach Name, bis der Nutzer selbst entscheidet
+  const [shared, setShared] = useState<boolean | null>(initial?.sharedAcrossGyms ?? null);
+  const sharedValue = shared ?? guessSharedAcrossGyms(name);
   const options = useLiveQuery(async () => {
     const all = await db.exercises.toArray();
     const uniq = (xs: (string | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b));
@@ -43,6 +47,7 @@ export function ExerciseForm({
             // '' = bewusst leer (wird nicht automatisch neu vorbelegt)
             muscleGroup: muscleGroup.trim() || (initial ? '' : undefined),
             alternativeGroup: alt.trim() || (initial ? '' : undefined),
+            sharedAcrossGyms: sharedValue,
             notes: notes.trim() || undefined,
           });
       }}
@@ -78,6 +83,15 @@ export function ExerciseForm({
             : 'Übungen mit gleicher Gruppe kannst du im Training gegeneinander tauschen.'}
         </p>
       </div>
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" className="mt-0.5 h-5 w-5" checked={sharedValue} onChange={(e) => setShared(e.target.checked)} />
+        <span>
+          🌐 Gym-übergreifend (Freihantel)
+          <span className="block text-xs text-slate-500">
+            Historie und Ziel über alle Gyms gemeinsam – sinnvoll bei Lang-/Kurzhanteln und Körpergewicht, nicht bei Maschinen.
+          </span>
+        </span>
+      </label>
       <Field label="Notiz (optional)">
         <input className="input" value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Field>

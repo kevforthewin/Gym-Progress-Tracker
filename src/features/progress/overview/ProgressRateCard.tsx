@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { progressByExercise, progressRate, type ExerciseProgress } from '../../../domain/dashboard';
 import { fmtNumber } from '../../../domain/units';
 import { Card } from '../../../components/ui';
-import { STATUS, type DashboardData } from './useDashboardData';
+import { ALL_GYMS, STATUS, type DashboardData } from './useDashboardData';
 
 type Bucket = 'up' | 'flat' | 'down';
 const signed = (p: number) => `${p >= 0 ? '+' : ''}${fmtNumber(p * 100, 1)} %`;
@@ -23,6 +23,7 @@ export function ProgressRateCard({ data }: { data: DashboardData }) {
     { key: 'down', label: 'gesunken', icon: '▼', color: STATUS.miss, list: r.down },
   ];
   const gymName = new Map(data.gyms.map((g) => [g.id, g.name.split(/\s+/)[0]]));
+  gymName.set(ALL_GYMS, 'alle Gyms');
 
   return (
     <Card className="space-y-3">
@@ -77,7 +78,10 @@ export function ProgressRateCard({ data }: { data: DashboardData }) {
                         key={p.stationId}
                         type="button"
                         className="flex w-full justify-between gap-2 text-left text-xs text-slate-500"
-                        onClick={() => nav(`/progress?tab=exercises&gym=${p.gymId}&station=${p.stationId}`)}
+                        onClick={() => {
+                          const real = data.realStation(p.stationId);
+                          nav(`/progress?tab=exercises&gym=${real.gymId}&station=${real.id}`);
+                        }}
                       >
                         <span>{gymName.get(p.gymId)}</span>
                         <span className="tabular-nums">
@@ -90,8 +94,8 @@ export function ProgressRateCard({ data }: { data: DashboardData }) {
             </ul>
           )}
           <p className="text-[11px] text-slate-500">
-            Je Übung über beide Gyms zusammengefasst (Ø der Veränderung je Gerät, verglichen wird immer am selben Gerät). Bestes geschätztes 1RM,
-            bei Körpergewicht max. Wdh. Kachel antippen für die Liste.
+            Je Übung zusammengefasst. Maschinen werden immer am selben Gerät verglichen (Ø über die Gyms), Freihantel-Übungen über alle Gyms
+            gemeinsam. Bestes geschätztes 1RM, bei Körpergewicht max. Wdh. Kachel antippen für die Liste.
           </p>
         </>
       )}

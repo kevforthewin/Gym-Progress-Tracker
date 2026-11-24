@@ -16,6 +16,8 @@ export interface Exercise {
   muscleGroup?: string;
   /** Übungen mit gleicher Gruppe sind im Training gegeneinander tauschbar (z. B. "Hintere Schulter"). */
   alternativeGroup?: string;
+  /** Freihantel o. ä.: Historie & Ziel über alle Gyms gemeinsam (Maschinen bleiben je Gym getrennt). */
+  sharedAcrossGyms?: boolean;
   notes?: string;
   createdAt: number;
 }

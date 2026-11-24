@@ -32,7 +32,20 @@ export function useInsights(): Insights | undefined {
 
     const items: Parameters<typeof buildStatus>[0] = [];
     const lastByStation = new Map<string, Awaited<ReturnType<typeof stationHistory>>>();
+    // Gym-übergreifende Übungen: nur ein Gerät auswerten (gemeinsame Historie) – das zuletzt benutzte
+    const lastUse = new Map<string, number>();
+    await db.sets.each((x) => {
+      if ((lastUse.get(x.stationId) ?? 0) < x.createdAt) lastUse.set(x.stationId, x.createdAt);
+    });
+    const sharedPick = new Map<string, string>(); // exerciseId -> stationId
     for (const st of stations) {
+      if (!exMap.get(st.exerciseId)?.sharedAcrossGyms) continue;
+      const cur = sharedPick.get(st.exerciseId);
+      if (!cur || (lastUse.get(st.id) ?? 0) > (lastUse.get(cur) ?? 0)) sharedPick.set(st.exerciseId, st.id);
+    }
+    for (const st of stations) {
+      const shared = sharedPick.get(st.exerciseId);
+      if (shared && shared !== st.id) continue;
       const ex = exMap.get(st.exerciseId);
       if (!ex || ex.type === 'time_distance') continue;
       const history = await stationHistory(st.id);
@@ -42,7 +55,7 @@ export function useInsights(): Insights | undefined {
       if (!pde) continue; // nur Übungen, die im Plan stehen
       const rx = pde ? { sets: pde.sets, repMin: pde.repMin, repMax: pde.repMax } : DEFAULT_RX;
       const target = computeTarget({ type: ex.type, prescription: rx, increment: st.weightIncrement, steps: st.weightSteps, startWeight: st.startWeight, history });
-      items.push({ stationId: st.id, label: multiGym ? `${st.name} · ${shortGym(gymName.get(st.gymId))}` : st.name, history, target });
+      items.push({ stationId: st.id, label: multiGym && !shared ? `${st.name} · ${shortGym(gymName.get(st.gymId))}` : st.name, history, target });
     }
     // Paare (links/rechts) mit gleichem Befund zusammenfassen
     const status = buildStatus(items);

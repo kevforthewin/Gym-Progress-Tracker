@@ -38,14 +38,30 @@ export const setsForSession = async (sessionId: string) =>
   );
 
 /** Alle Sätze einer Station, gruppiert nach Session (älteste zuerst). */
+/** Stationen, deren Historie zusammengehört: bei gym-übergreifenden Übungen alle Geräte dieser Übung. */
+export async function historyStationIds(stationId: string): Promise<string[]> {
+  const st = await db.stations.get(stationId);
+  if (!st) return [stationId];
+  const ex = await db.exercises.get(st.exerciseId);
+  if (!ex?.sharedAcrossGyms) return [stationId];
+  return (await db.stations.where('exerciseId').equals(ex.id).primaryKeys()) as string[];
+}
+
 export async function stationSessions(
   stationId: string,
   opts: { excludeSessionId?: string; includeWarmup?: boolean; includeExcluded?: boolean } = {},
 ): Promise<{ session: Session; sets: SetEntry[] }[]> {
-  const sets = await db.sets
-    .where('[stationId+createdAt]')
-    .between([stationId, -Infinity], [stationId, Infinity])
-    .toArray();
+  const ids = await historyStationIds(stationId);
+  const sets = (
+    await Promise.all(
+      ids.map((id) =>
+        db.sets
+          .where('[stationId+createdAt]')
+          .between([id, -Infinity], [id, Infinity])
+          .toArray(),
+      ),
+    )
+  ).flat();
   const bySession = new Map<string, SetEntry[]>();
   for (const s of sets) {
     if (s.sessionId === opts.excludeSessionId) continue;

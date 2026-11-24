@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
-import { guessMuscleGroup } from '../domain/exerciseDefaults';
+import { guessMuscleGroup, guessSharedAcrossGyms } from '../domain/exerciseDefaults';
 import type {
   BodyweightEntry,
   CardioEntry,
@@ -66,6 +66,17 @@ export class GymDB extends Dexie {
         }
       });
     this.version(3).stores({ health: 'date', cardio: 'id, date, externalId' });
+    this.version(4)
+      .stores({})
+      .upgrade(async (tx) => {
+        // Freihantel-Übungen gym-übergreifend markieren
+        await tx
+          .table('exercises')
+          .toCollection()
+          .modify((e: Exercise) => {
+            fillExerciseDefaults(e);
+          });
+      });
   }
 }
 
@@ -140,6 +151,10 @@ export function fillExerciseDefaults(e: Exercise): boolean {
   if (e.alternativeGroup === undefined) {
     const g = defaultAlternativeGroup(e.name);
     if (g) (e.alternativeGroup = g), (changed = true);
+  }
+  if (e.sharedAcrossGyms === undefined) {
+    e.sharedAcrossGyms = guessSharedAcrossGyms(e.name);
+    changed = true;
   }
   if (e.muscleGroup === undefined) {
     const m = guessMuscleGroup(e.name);

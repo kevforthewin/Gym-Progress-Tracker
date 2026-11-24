@@ -29,3 +29,13 @@ export function guessMuscleGroup(name: string): string | undefined {
   const { base } = splitSide(name);
   return MUSCLE_RULES.find(([re]) => re.test(base))?.[1];
 }
+
+/**
+ * Freihantel-/Körpergewichtsübungen sind in jedem Gym gleich -> Historie gym-übergreifend.
+ * Maschinen (Matrix, Hoist, Hammer Strength …) und Kabelzüge bleiben je Gym getrennt.
+ */
+export function guessSharedAcrossGyms(name: string): boolean {
+  const { base } = splitSide(name);
+  if (/maschine|matrix|hoist|hammer strength|kabel|cable|multi pec|smith|presse/i.test(base)) return false;
+  return /kurzhantel|langhantel|\bkh\b|\blh\b|sz-|hantel|klimmz|chin.?up|pull.?up|dips|hammercurl|shrug|^bankdrücken$|^bench press$/i.test(base);
+}

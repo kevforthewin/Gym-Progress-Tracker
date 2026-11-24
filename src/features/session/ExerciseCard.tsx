@@ -96,6 +96,7 @@ export function ExerciseCard({ sessionId, title, members, alternatives = [], onS
               {swapped && '⇄ getauscht · '}
               {isEndurance ? `${p.sets} Satz/Sätze` : `${p.sets} × ${p.repMin}–${p.repMax}${isPair ? ' je Seite' : ''}`}
               {first.station.settingsNote && ` · ${first.station.settingsNote}`}
+              {first.exercise.sharedAcrossGyms && ' · 🌐 alle Gyms'}
             </p>
             {comparison && comparison.weaker && comparison.diffPct >= 5 && (
               <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">

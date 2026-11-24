@@ -22,7 +22,8 @@ mit automatischem **Ziel für das nächste Training** (doppelte Progression) und
 - **Alternativen & Tauschen**: Übungen mit gleicher Alternativ-Gruppe im Training per ⋯ tauschen (z. B. Face Pull ⇄ Reverse Butterfly).
 - **Links/rechts in einer Karte** mit Seitenvergleich (schwächere Seite zuerst, Hinweis ab 5 % / Status ab 10 % Unterschied).
 - **Aufbau**: 4 Tabs – *Heute* (Training starten, Schnellaktionen Health/Gewicht/Cardio, Diese Woche, Status), *Verlauf* (Trainings + Cardio), *Fortschritt* (Übungen, Volumen, Körper – nur Auswertung), *Einstellungen* (Pläne, Übungen, Gyms, Importe, Health, Backup).
-- **Überblick** (Fortschritt): Konsistenz-Kalender (16 Wochen, Wochenziel, Serie), Push/Pull/Legs-Balance mit Hinweisen, Fortschritt je Übung über beide Gyms (4 vs. 4 Wochen), Kraft-Highlights je Gym.
+- **Freihantel gym-übergreifend**: Übungen mit 🌐 (Lang-/Kurzhantel, Körpergewicht – automatisch erkannt, pro Übung umschaltbar) teilen Historie, Ziel und Auswertungen über alle Gyms; Maschinen bleiben je Gym getrennt.
+- **Überblick** (Fortschritt): Konsistenz-Kalender (6 Wochen, Wochenziel, Serie), Push/Pull/Legs-Balance mit Hinweisen, Fortschritt je Übung über beide Gyms (4 vs. 4 Wochen), Kraft-Highlights je Gym.
 - **Status** auf der Startseite: Steigern, Bestwerte (7 Tage), Stagniert, Deload – Details beim Antippen.
 - **Wochen-Volumen**: Arbeitssätze pro Muskelgruppe und Woche (Orientierung 10–20).
 - **Körpergewicht & Cardio**: Verlauf, Minuten pro Woche.

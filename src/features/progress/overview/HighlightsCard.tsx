@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { strengthHighlights, type Highlight } from '../../../domain/dashboard';
 import { fmtNumber } from '../../../domain/units';
 import { Card } from '../../../components/ui';
-import type { DashboardData } from './useDashboardData';
+import { ALL_GYMS, ALL_GYMS_COLOR, type DashboardData } from './useDashboardData';
 
 const W = 140;
 const H = 48;
@@ -40,8 +40,14 @@ export function HighlightsCard({ data }: { data: DashboardData }) {
   const nav = useNavigate();
   const items = useMemo(() => strengthHighlights(data.sessions, data.sets, data.stations, data.exercises, () => true), [data]);
   const gym = new Map(data.gyms.map((g) => [g.id, g]));
-  const color = (id: string) => gym.get(id)?.color ?? '#94a3b8';
-  const multi = data.gyms.length > 1 && items.some((h) => h.series.length > 1);
+  const color = (id: string) => (id === ALL_GYMS ? ALL_GYMS_COLOR : gym.get(id)?.color ?? '#94a3b8');
+  const gymLabel = (id: string) => (id === ALL_GYMS ? 'alle Gyms' : gym.get(id)?.name.split(/\s+/)[0] ?? '');
+  const shown = new Set(items.flatMap((h) => h.series.map((s) => s.gymId)));
+  const legend = [
+    ...data.gyms.filter((g) => shown.has(g.id)),
+    ...(shown.has(ALL_GYMS) ? [{ id: ALL_GYMS, name: 'alle Gyms', color: ALL_GYMS_COLOR }] : []),
+  ];
+  const multi = legend.length > 1;
 
   return (
     <Card className="space-y-3">
@@ -50,11 +56,11 @@ export function HighlightsCard({ data }: { data: DashboardData }) {
         <span className="text-xs text-slate-500">12 Wochen · e1RM</span>
       </div>
       {multi && (
-        <ul className="flex gap-3 text-xs text-slate-500">
-          {data.gyms.map((g) => (
-            <li key={g.id} className="flex items-center gap-1">
+        <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+          {legend.map((g) => (
+            <li key={g.id} className="flex items-center gap-1 whitespace-nowrap">
               <span className="h-0.5 w-3 rounded" style={{ background: g.color }} />
-              {g.name}
+              {g.id === ALL_GYMS ? g.name : g.name.split(/\s+/)[0]}
             </li>
           ))}
         </ul>
@@ -69,7 +75,10 @@ export function HighlightsCard({ data }: { data: DashboardData }) {
               <button
                 key={h.exerciseId}
                 type="button"
-                onClick={() => nav(`/progress?tab=exercises&gym=${latest.gymId}&station=${latest.stationId}`)}
+                onClick={() => {
+                  const real = data.realStation(latest.stationId);
+                  nav(`/progress?tab=exercises&gym=${real.gymId}&station=${real.id}`);
+                }}
                 className="rounded-lg border border-slate-200 p-2 text-left dark:border-slate-700"
               >
                 <p className="line-clamp-2 h-10 text-sm font-medium leading-5">{h.name}</p>
@@ -79,7 +88,7 @@ export function HighlightsCard({ data }: { data: DashboardData }) {
                     <li key={s.stationId} className="flex items-baseline justify-between gap-1 text-[11px]">
                       <span className="flex min-w-0 items-center gap-1 text-slate-500">
                         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color(s.gymId) }} />
-                        <span className="truncate">{gym.get(s.gymId)?.name.split(/\s+/)[0]}</span>
+                        <span className="truncate">{gymLabel(s.gymId)}</span>
                       </span>
                       <span className="shrink-0 tabular-nums">
                         <strong>{fmtNumber(s.last, h.unit === 'kg' ? 1 : 0)}</strong>
