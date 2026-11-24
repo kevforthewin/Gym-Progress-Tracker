@@ -5,6 +5,8 @@ import { isoDate } from '../../db/repositories/body';
 import { addWeeks, weekStart } from '../../domain/insights';
 import { fmtNumber } from '../../domain/units';
 import { Card } from '../../components/ui';
+import { getSetting } from '../../db/repositories/settings';
+import { DEFAULT_WEEKLY_GOAL } from '../progress/overview/useDashboardData';
 
 /** Diese Woche: Trainings, Sätze, Cardio-Minuten, Ø Schritte – mit Vorwoche zum Vergleich. */
 export function WeekSummary() {
@@ -25,7 +27,7 @@ export function WeekSummary() {
       const steps = (await db.health.where('date').between(a, b, true, false).toArray()).map((h) => h.steps).filter((x): x is number => !!x);
       return { sessions: ss.length, sets, cardio, steps: steps.length ? steps.reduce((x, y) => x + y, 0) / steps.length : undefined };
     };
-    return { now: await stats(cur, addWeeks(cur, 1)), prev: await stats(prev, cur) };
+    return { now: await stats(cur, addWeeks(cur, 1)), prev: await stats(prev, cur), goal: (await getSetting('weeklyGoal')) ?? DEFAULT_WEEKLY_GOAL };
   });
   if (!data) return null;
   const tiles: [string, number | undefined, number | undefined, number, string][] = [
@@ -40,7 +42,10 @@ export function WeekSummary() {
       <div className="grid grid-cols-4 gap-2">
         {tiles.map(([label, v, p, d, to]) => (
           <button key={label} type="button" onClick={() => nav(to)} className="rounded-lg border border-slate-200 px-1 py-2 text-center dark:border-slate-700">
-            <div className="text-lg font-bold tabular-nums">{v === undefined ? '–' : fmtNumber(v, d)}</div>
+            <div className={`text-lg font-bold tabular-nums ${label === 'Trainings' && (v ?? 0) >= data.goal ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
+              {v === undefined ? '–' : fmtNumber(v, d)}
+              {label === 'Trainings' && <span className="text-xs font-normal text-slate-500">/{data.goal}</span>}
+            </div>
             <div className="text-[11px] leading-tight text-slate-500">{label}</div>
             <div className="text-[10px] text-slate-400">Vorw. {p === undefined ? '–' : fmtNumber(p, d)}</div>
           </button>

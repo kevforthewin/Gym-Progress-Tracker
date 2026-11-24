@@ -6,6 +6,8 @@ export interface SettingsMap {
   seeded: boolean;
   /** Gemerkte Zuordnungen beim Import: `${gymId}|${normName}` -> stationId */
   importAliases: Record<string, string>;
+  /** Ziel: Trainings pro Woche (Konsistenz-Dashboard) */
+  weeklyGoal: number;
 }
 
 export async function getSetting<K extends keyof SettingsMap>(key: K): Promise<SettingsMap[K] | undefined> {
