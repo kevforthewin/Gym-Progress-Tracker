@@ -3,7 +3,7 @@
  */
 import { addWeeks, weekStart } from './insights';
 import { e1rm } from './metrics';
-import { computeTarget, type Prescription, type WorkSet } from './progression';
+import type { WorkSet } from './progression';
 import { splitSide } from './exerciseDefaults';
 import type { ExerciseType } from '../db/types';
 
@@ -231,91 +231,6 @@ function stationSessions(sessions: DSession[], sets: DSet[]): Map<string, Statio
 }
 
 // ---------------------------------------------------------------------------
-// 3) Ziel-Erfüllung: Ziel so nachrechnen, wie die App es damals vorgeschlagen hätte
-
-export type Outcome = 'hit' | 'near' | 'miss';
-export interface AdherenceWeek {
-  start: number;
-  hit: number;
-  near: number;
-  miss: number;
-}
-export interface Adherence {
-  hit: number;
-  near: number;
-  miss: number;
-  weeks: AdherenceWeek[];
-  /** Übungen mit den meisten verfehlten Sätzen (Fenster) */
-  worst: { stationId: string; label: string; rate: number; total: number }[];
-}
-
-export function classifySet(actual: WorkSet, target: WorkSet): Outcome {
-  const w = actual.weightKg ?? 0;
-  const r = actual.reps ?? 0;
-  const tw = target.weightKg ?? 0;
-  const tr = target.reps ?? 0;
-  if (w + 1e-9 >= tw && r >= tr) return 'hit';
-  if (w + 1e-9 >= tw && r >= tr - 1) return 'near';
-  // leichteres Gewicht, dafür deutlich mehr Wdh. zählt nicht als erreicht
-  return 'miss';
-}
-
-export function targetAdherence(
-  sessions: DSession[],
-  sets: DSet[],
-  stations: DStation[],
-  exercises: Map<string, DExercise>,
-  rxFor: (exerciseId: string) => Prescription,
-  opts: { weeks?: number; now?: number } = {},
-): Adherence {
-  const now = opts.now ?? Date.now();
-  const nWeeks = opts.weeks ?? 8;
-  const from = addWeeks(weekStart(now), -(nWeeks - 1));
-  const per = stationSessions(sessions, sets);
-  const weeks: AdherenceWeek[] = Array.from({ length: nWeeks }, (_, i) => ({ start: addWeeks(from, i), hit: 0, near: 0, miss: 0 }));
-  const stationStats = new Map<string, { hit: number; total: number }>();
-  const total = { hit: 0, near: 0, miss: 0 };
-
-  for (const st of stations) {
-    const ex = exercises.get(st.exerciseId);
-    if (!ex || ex.type === 'time_distance') continue;
-    const hist = per.get(st.id) ?? [];
-    const rx = rxFor(st.exerciseId);
-    hist.forEach((ss, i) => {
-      if (ss.ts < from || i === 0) return; // erstes Training hat keine Vergleichsbasis
-      const target = computeTarget({
-        type: ex.type,
-        prescription: rx,
-        increment: st.weightIncrement,
-        steps: st.weightSteps,
-        startWeight: st.startWeight,
-        history: hist.slice(0, i).map((h) => ({ date: h.ts, sets: h.sets })),
-      });
-      if (target.reason === 'first') return;
-      const wk = weeks.find((w) => ss.ts >= w.start && ss.ts < addWeeks(w.start, 1));
-      const n = Math.min(ss.sets.length, target.sets.length);
-      for (let k = 0; k < n; k++) {
-        const o = classifySet(ss.sets[k], target.sets[k]);
-        total[o]++;
-        if (wk) wk[o]++;
-        const s = stationStats.get(st.id) ?? { hit: 0, total: 0 };
-        s.total++;
-        if (o === 'hit') s.hit++;
-        stationStats.set(st.id, s);
-      }
-    });
-  }
-
-  const label = new Map(stations.map((s) => [s.id, s.name]));
-  const worst = [...stationStats]
-    .filter(([, s]) => s.total >= 4)
-    .map(([stationId, s]) => ({ stationId, label: label.get(stationId) ?? '?', rate: s.hit / s.total, total: s.total }))
-    .sort((a, b) => a.rate - b.rate)
-    .slice(0, 3);
-  return { ...total, weeks, worst };
-}
-
-// ---------------------------------------------------------------------------
 // 4) Fortschrittsquote: bestes e1RM letzte 4 Wochen vs. 4 Wochen davor
 
 export interface ProgressItem {
@@ -441,4 +356,47 @@ export function strengthHighlights(
     }))
     .sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name))
     .slice(0, opts.max ?? 6);
+}
+
+// ---------------------------------------------------------------------------
+// Fortschritt je Übung (gym-übergreifend zusammengefasst)
+
+export interface ExerciseProgress {
+  exerciseId: string;
+  name: string;
+  /** Mittelwert der relativen Veränderung über die Geräte (Gyms) */
+  pct: number;
+  parts: (ProgressItem & { gymId: string })[];
+}
+export interface ExerciseProgressRate {
+  up: ExerciseProgress[];
+  flat: ExerciseProgress[];
+  down: ExerciseProgress[];
+}
+
+/** Fasst die Fortschrittsquote je Übung zusammen – unabhängig davon, in welchem Gym trainiert wurde. */
+export function progressByExercise(
+  rate: ProgressRate,
+  stations: DStation[],
+  exercises: Map<string, DExercise>,
+  threshold = 0.01,
+): ExerciseProgressRate {
+  const st = new Map(stations.map((s) => [s.id, s]));
+  const groups = new Map<string, ExerciseProgress>();
+  for (const it of [...rate.up, ...rate.flat, ...rate.down]) {
+    const s = st.get(it.stationId);
+    if (!s) continue;
+    const g = groups.get(s.exerciseId) ?? { exerciseId: s.exerciseId, name: exercises.get(s.exerciseId)?.name ?? it.label, pct: 0, parts: [] };
+    g.parts.push({ ...it, gymId: s.gymId });
+    groups.set(s.exerciseId, g);
+  }
+  const res: ExerciseProgressRate = { up: [], flat: [], down: [] };
+  for (const g of groups.values()) {
+    g.pct = g.parts.reduce((a, p) => a + p.pct, 0) / g.parts.length;
+    (g.pct > threshold ? res.up : g.pct < -threshold ? res.down : res.flat).push(g);
+  }
+  res.up.sort((a, b) => b.pct - a.pct);
+  res.down.sort((a, b) => a.pct - b.pct);
+  res.flat.sort((a, b) => a.name.localeCompare(b.name));
+  return res;
 }

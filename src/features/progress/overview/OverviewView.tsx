@@ -1,11 +1,11 @@
 import { useDashboardData } from './useDashboardData';
 import { ConsistencyCard } from './ConsistencyCard';
 import { BalanceCard } from './BalanceCard';
-import { AdherenceCard, ProgressRateCard } from './TargetsCard';
+import { ProgressRateCard } from './ProgressRateCard';
 import { HighlightsCard } from './HighlightsCard';
 import { EmptyState } from '../../../components/ui';
 
-/** Fortschritt → Überblick: Konsistenz, Balance, Ziel-Erfüllung, Fortschrittsquote, Kraft-Highlights. */
+/** Fortschritt → Überblick: Konsistenz, Balance, Fortschritt, Kraft-Highlights. */
 export function OverviewView() {
   const data = useDashboardData();
   if (!data) return null;
@@ -14,7 +14,6 @@ export function OverviewView() {
     <div className="space-y-4">
       <ConsistencyCard data={data} />
       <BalanceCard data={data} />
-      <AdherenceCard data={data} />
       <ProgressRateCard data={data} />
       <HighlightsCard data={data} />
     </div>

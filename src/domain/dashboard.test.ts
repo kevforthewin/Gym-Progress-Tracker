@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   balanceWarnings,
-  classifySet,
   consistency,
+  progressByExercise,
   progressRate,
   splitBalance,
   splitOfDayName,
   strengthHighlights,
-  targetAdherence,
   type DExercise,
   type DSession,
   type DSet,
@@ -92,32 +91,6 @@ function build(rows: [string, string, number, [number, number][]][]) {
   }
   return { sessions, sets };
 }
-const rx = () => ({ sets: 3, repMin: 8, repMax: 12 });
-
-describe('classifySet', () => {
-  it('erreicht / knapp / verfehlt', () => {
-    expect(classifySet({ weightKg: 70, reps: 8 }, { weightKg: 70, reps: 8 })).toBe('hit');
-    expect(classifySet({ weightKg: 72.5, reps: 9 }, { weightKg: 70, reps: 8 })).toBe('hit');
-    expect(classifySet({ weightKg: 70, reps: 7 }, { weightKg: 70, reps: 8 })).toBe('near');
-    expect(classifySet({ weightKg: 65, reps: 12 }, { weightKg: 70, reps: 8 })).toBe('miss');
-  });
-});
-
-describe('targetAdherence', () => {
-  it('rechnet das damalige Ziel nach und zählt Sätze', () => {
-    const { sessions, sets } = build([
-      ['s1', 'bank-evo', day(9), [[70, 7], [70, 7], [70, 7]]],
-      // Ziel danach: 70×8/8/8 -> erreicht 8, 8, knapp 7
-      ['s2', 'bank-evo', day(16), [[70, 8], [70, 8], [70, 7]]],
-      // Ziel: 70×9/9/8 -> 9 hit, 7 miss, 8 hit
-      ['s3', 'bank-evo', day(23), [[70, 9], [70, 7], [70, 8]]],
-    ]);
-    const a = targetAdherence(sessions, sets, stations, exercises, rx, { now: NOW });
-    expect({ hit: a.hit, near: a.near, miss: a.miss }).toEqual({ hit: 4, near: 1, miss: 1 });
-    expect(a.weeks.at(-1)).toMatchObject({ hit: 2, near: 0, miss: 1 });
-    expect(a.worst[0]).toMatchObject({ stationId: 'bank-evo', total: 6 });
-  });
-});
 
 describe('progressRate', () => {
   it('vergleicht bestes e1RM 4 Wochen mit den 4 Wochen davor', () => {
@@ -133,6 +106,22 @@ describe('progressRate', () => {
     expect(r.up.map((x) => x.stationId)).toEqual(['bank-evo']);
     expect(r.flat.map((x) => x.stationId)).toEqual(['bank-iron']);
     expect(r.down).toMatchObject([{ stationId: 'klimm-evo', unit: 'Wdh.', before: 8, now: 6 }]);
+  });
+});
+
+describe('progressByExercise', () => {
+  it('fasst Gyms je Übung zusammen (Mittelwert)', () => {
+    const { sessions, sets } = build([
+      ['a1', 'bank-evo', day(1) - 7 * 86400000, [[60, 8]]],
+      ['a2', 'bank-evo', day(20), [[66, 8]]], // +10 %
+      ['b1', 'bank-iron', day(2) - 7 * 86400000, [[70, 8]]],
+      ['b2', 'bank-iron', day(21), [[69.3, 8]]], // -1 %
+    ]);
+    const r = progressByExercise(progressRate(sessions, sets, stations, exercises, () => true, { now: NOW }), stations, exercises);
+    expect(r.up).toHaveLength(1);
+    expect(r.up[0].name).toBe('Bankdrücken');
+    expect(r.up[0].parts.map((p) => p.gymId).sort()).toEqual(['evo', 'iron']);
+    expect(r.up[0].pct).toBeCloseTo((0.1 - 0.01) / 2, 2);
   });
 });
 
