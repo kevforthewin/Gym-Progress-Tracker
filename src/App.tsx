@@ -5,6 +5,7 @@ import { HomePage } from './features/home/HomePage';
 import { StartSessionPage } from './features/session/StartSessionPage';
 import { ActiveSessionPage } from './features/session/ActiveSessionPage';
 import { QuickEntryPage } from './features/session/QuickEntryPage';
+import { SessionSummaryPage } from './features/session/SessionSummaryPage';
 import { HistoryPage } from './features/history/HistoryPage';
 import { ManagePage } from './features/manage/ManagePage';
 import { GymDetailPage } from './features/manage/GymDetailPage';
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/session/start" element={<StartSessionPage />} />
           <Route path="/quick" element={<QuickEntryPage />} />
           <Route path="/session/:id" element={<ActiveSessionPage />} />
+          <Route path="/session/:id/summary" element={<SessionSummaryPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/progress" element={<Suspense fallback={null}><ProgressPage /></Suspense>} />
           <Route path="/manage" element={<ManagePage />} />

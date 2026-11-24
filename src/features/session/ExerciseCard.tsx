@@ -30,11 +30,15 @@ interface Props {
   alternatives?: SwapOption[];
   onSwap?: (opt: SwapOption | null) => void;
   swapped?: boolean;
+  /** Reihenfolge in diesem Training ändern */
+  onReorder?: (action: 'next' | 'up' | 'down') => void;
+  canUp?: boolean;
+  canDown?: boolean;
 }
 
 const sideName = (m: UnitMember) => splitSide(m.exercise.name).side ?? splitSide(m.station.name).side;
 
-export function ExerciseCard({ sessionId, title, members, alternatives = [], onSwap, swapped }: Props) {
+export function ExerciseCard({ sessionId, title, members, alternatives = [], onSwap, swapped, onReorder, canUp, canDown }: Props) {
   const ids = members.map((m) => m.station.id).join('|');
   const histories = useLiveQuery(
     () => Promise.all(members.map((m) => stationHistory(m.station.id, sessionId))),
@@ -147,6 +151,28 @@ export function ExerciseCard({ sessionId, title, members, alternatives = [], onS
 
       <Modal open={menu} onClose={() => setMenu(false)} title={title}>
         <div className="space-y-4 text-sm">
+          {onReorder && (
+            <section>
+              <h3 className="mb-1 font-semibold">Reihenfolge</h3>
+              <div className="grid grid-cols-[1fr_auto_auto] gap-2">
+                <Button
+                  onClick={() => {
+                    onReorder('next');
+                    setMenu(false);
+                  }}
+                >
+                  ⏭ Als Nächstes
+                </Button>
+                <Button variant="secondary" disabled={!canUp} aria-label="Nach oben" onClick={() => onReorder('up')}>
+                  ↑
+                </Button>
+                <Button variant="secondary" disabled={!canDown} aria-label="Nach unten" onClick={() => onReorder('down')}>
+                  ↓
+                </Button>
+              </div>
+              <p className="mt-1 text-xs text-slate-500">Gilt nur für dieses Training, der Plan bleibt unverändert.</p>
+            </section>
+          )}
           {onSwap && (
             <section>
               <h3 className="mb-1 font-semibold">Übung tauschen</h3>

@@ -114,7 +114,38 @@ export function ActiveSessionPage() {
 
   const finish = async () => {
     await finishSession(session.id);
-    nav('/');
+    nav(`/session/${session.id}/summary`, { replace: true });
+  };
+
+  // ---- Karten in Trainings-Reihenfolge (eigene Reihenfolge dieses Trainings hat Vorrang vor dem Plan) ----
+  type CardItem = { key: string; title: string; members: UnitMember[]; plan?: (typeof shown)[number] };
+  const natural: CardItem[] = [
+    ...shown.map((u) => ({ key: u.key, title: u.title, members: u.members, plan: u })),
+    ...extraGroups
+      .map((g) => ({ key: `extra:${g.base}`, title: g.base, members: g.stations.map((st) => memberOf(st)).filter((m): m is UnitMember => !!m) }))
+      .filter((c) => c.members.length),
+  ];
+  const savedOrder = session.order ?? [];
+  const cards = [
+    ...savedOrder.map((k) => natural.find((c) => c.key === k)).filter((c): c is CardItem => !!c),
+    ...natural.filter((c) => !savedOrder.includes(c.key)),
+  ];
+  const isDone = (c: CardItem) =>
+    c.members.reduce((a, m) => a + m.sets.filter((s) => !s.isWarmup).length, 0) >= c.members.reduce((a, m) => a + m.prescription.sets, 0);
+  const reorder = (key: string, action: 'next' | 'up' | 'down') => {
+    const keys = cards.map((c) => c.key);
+    const i = keys.indexOf(key);
+    if (i < 0) return;
+    keys.splice(i, 1);
+    if (action === 'up') keys.splice(Math.max(0, i - 1), 0, key);
+    else if (action === 'down') keys.splice(Math.min(keys.length, i + 1), 0, key);
+    else {
+      // "Als Nächstes": vor die erste noch offene Übung
+      const rest = cards.filter((c) => c.key !== key);
+      const firstOpen = rest.findIndex((c) => !isDone(c));
+      keys.splice(firstOpen < 0 ? keys.length : firstOpen, 0, key);
+    }
+    return updateSession(session.id, { order: keys });
   };
   const remove = async () => {
     if (!confirm('Training inkl. aller Sätze löschen?')) return;
@@ -139,7 +170,9 @@ export function ActiveSessionPage() {
               Beenden
             </Button>
           ) : (
-            <span className="chip bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">abgeschlossen</span>
+            <Button variant="secondary" onClick={() => nav(`/session/${session.id}/summary`)} className="min-h-9 px-3 py-1 text-sm">
+              Zusammenfassung
+            </Button>
           )
         }
       />
@@ -148,22 +181,20 @@ export function ActiveSessionPage() {
       </p>
 
       <div className="space-y-3">
-        {shown.map((u) => (
+        {cards.map((c, i) => (
           <ExerciseCard
-            key={u.key}
+            key={c.key}
             sessionId={session.id}
-            title={u.title}
-            members={u.members}
-            alternatives={alternativesFor(u)}
-            swapped={u.swapped}
-            onSwap={(opt) => doSwap(u.key, opt)}
+            title={c.title}
+            members={c.members}
+            alternatives={c.plan ? alternativesFor(c.plan) : undefined}
+            swapped={c.plan?.swapped}
+            onSwap={c.plan ? (opt) => doSwap(c.plan!.key, opt) : undefined}
+            onReorder={(a) => reorder(c.key, a)}
+            canUp={i > 0}
+            canDown={i < cards.length - 1}
           />
         ))}
-
-        {extraGroups.map((g) => {
-          const members = g.stations.map((st) => memberOf(st)).filter((m): m is UnitMember => !!m);
-          return members.length ? <ExerciseCard key={g.base} sessionId={session.id} title={g.base} members={members} /> : null;
-        })}
 
         <Button variant="secondary" className="w-full" onClick={() => setAddOpen(true)}>
           + Übung hinzufügen

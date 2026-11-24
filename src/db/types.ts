@@ -77,6 +77,8 @@ export interface Session {
   notes?: string;
   /** Getauschte Übungen: Schlüssel = Plan-Einheit (pde-IDs), Wert = verwendete Station(en). */
   swaps?: Record<string, string[]>;
+  /** Eigene Reihenfolge der Übungen in diesem Training (Karten-Schlüssel) */
+  order?: string[];
 }
 
 export interface SetEntry {
