@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useSearchParams } from 'react-router-dom';
 import { db } from '../../db/schema';
 import { stationSessions } from '../../db/repositories/sessions';
+import { getSetting } from '../../db/repositories/settings';
 import type { ExerciseType } from '../../db/types';
 import { personalRecords, prDates, sessionMetrics, type PrKey } from '../../domain/metrics';
 import { fmtDate, fmtDistance, fmtDuration, fmtKg, fmtNumber } from '../../domain/units';
@@ -57,7 +58,31 @@ export function ExerciseProgress() {
         return { station: st, series };
       }),
     );
-    return rows.filter((r) => r.series.length > 0).sort((a, b) => a.station.name.localeCompare(b.station.name));
+    const withData = rows.filter((r) => r.series.length > 0);
+
+    // Nach Trainingstag des Plans gruppieren (aktiver Plan zuerst, Reihenfolge wie im Plan)
+    const [days, pdes, activePlanId] = await Promise.all([db.planDays.toArray(), db.planDayExercises.toArray(), getSetting('activePlanId')]);
+    const plans = await db.plans.toArray();
+    const planRank = (planId: string) => (planId === activePlanId ? 0 : 1 + plans.findIndex((p) => p.id === planId));
+    const orderedDays = days.sort((a, b) => planRank(a.planId) - planRank(b.planId) || a.order - b.order);
+    const groups: { name: string; rows: (typeof withData)[number][]; inPlan: boolean }[] = [];
+    const groupOf = (name: string, inPlan = true) => {
+      let g = groups.find((x) => x.name.toLowerCase() === name.toLowerCase());
+      if (!g) groups.push((g = { name, rows: [], inPlan }));
+      return g;
+    };
+    orderedDays.forEach((d) => groupOf(d.name));
+    const posOf = new Map<string, number>();
+    for (const r of withData) {
+      const day = orderedDays.find((d) => pdes.some((p) => p.planDayId === d.id && p.exerciseId === r.station.exerciseId));
+      const pde = day && pdes.find((p) => p.planDayId === day.id && p.exerciseId === r.station.exerciseId);
+      posOf.set(r.station.id, pde?.order ?? 999);
+      groupOf(day ? day.name : 'Nicht im Plan', !!day).rows.push(r);
+    }
+    for (const g of groups) g.rows.sort((a, b) => (posOf.get(a.station.id) ?? 0) - (posOf.get(b.station.id) ?? 0) || a.station.name.localeCompare(b.station.name));
+    const nonEmpty = groups.filter((g) => g.rows.length);
+    // "Nicht im Plan" immer ans Ende
+    return [...nonEmpty.filter((g) => g.inPlan), ...nonEmpty.filter((g) => !g.inPlan)];
   }, [gymId]);
 
   // Inkl. "zählt nicht"-Sätzen (werden in der Tabelle durchgestrichen gezeigt, aber nicht ausgewertet)
@@ -96,10 +121,14 @@ export function ExerciseProgress() {
         </select>
         <select className="input" value={stationId} onChange={(e) => set('station', e.target.value)} aria-label="Gerät">
           <option value="">Alle Geräte</option>
-          {overview?.map((r) => (
-            <option key={r.station.id} value={r.station.id}>
-              {r.station.name}
-            </option>
+          {overview?.map((g) => (
+            <optgroup key={g.name} label={g.name}>
+              {g.rows.map((r) => (
+                <option key={r.station.id} value={r.station.id}>
+                  {r.station.name}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
       </div>
@@ -108,38 +137,59 @@ export function ExerciseProgress() {
         overview.length === 0 ? (
           <EmptyState title="Noch keine Daten in diesem Gym." />
         ) : (
-          <ul className="space-y-2">
-            {overview.map(({ station: st, series: s }) => {
-              const ex = lookup.exercises.get(st.exerciseId);
-              if (!ex) return null;
-              const m = headline(ex.type);
-              const first = s[0][m.key];
-              const lastV = s[s.length - 1][m.key];
-              const delta = first > 0 ? ((lastV - first) / first) * 100 : 0;
-              return (
-                <li key={st.id}>
-                  <button type="button" className="w-full text-left" onClick={() => set('station', st.id)}>
-                    <Card className="flex items-center justify-between py-3">
-                      <div>
-                        <p className="font-medium">{st.name}</p>
-                        <p className="text-xs text-slate-500">
-                          {s.length} Sessions · {m.label}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold">{m.fmt(lastV)}</p>
-                        {s.length > 1 && (
-                          <p className={`text-xs ${delta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                            {delta >= 0 ? '▲' : '▼'} {fmtNumber(Math.abs(delta), 1)} %
-                          </p>
-                        )}
-                      </div>
-                    </Card>
-                  </button>
-                </li>
+          <div className="space-y-5">
+            {overview.map((g) => {
+              const list = (
+                <ul className="space-y-2">
+                  {g.rows.map(({ station: st, series: s }) => {
+                    const ex = lookup.exercises.get(st.exerciseId);
+                    if (!ex) return null;
+                    const m = headline(ex.type);
+                    const first = s[0][m.key];
+                    const lastV = s[s.length - 1][m.key];
+                    const delta = first > 0 ? ((lastV - first) / first) * 100 : 0;
+                    return (
+                      <li key={st.id}>
+                        <button type="button" className="w-full text-left" onClick={() => set('station', st.id)}>
+                          <Card className="flex items-center justify-between py-3">
+                            <div>
+                              <p className="font-medium">{st.name}</p>
+                              <p className="text-xs text-slate-500">
+                                {s.length} Sessions · {m.label}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold">{m.fmt(lastV)}</p>
+                              {s.length > 1 && (
+                                <p className={`text-xs ${delta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                                  {delta >= 0 ? '▲' : '▼'} {fmtNumber(Math.abs(delta), 1)} %
+                                </p>
+                              )}
+                            </div>
+                          </Card>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              );
+              return g.inPlan ? (
+                <section key={g.name}>
+                  <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    {g.name} · {g.rows.length}
+                  </h2>
+                  {list}
+                </section>
+              ) : (
+                <details key={g.name}>
+                  <summary className="mb-2 cursor-pointer text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    {g.name} · {g.rows.length} (alte Geräte & Varianten)
+                  </summary>
+                  {list}
+                </details>
               );
             })}
-          </ul>
+          </div>
         )
       )}
 
