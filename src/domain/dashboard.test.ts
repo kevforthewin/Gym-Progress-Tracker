@@ -28,7 +28,7 @@ describe('splitOfDayName', () => {
 });
 
 describe('consistency', () => {
-  it('Wochen, Ziel, Serie, Ø', () => {
+  it('Kalender, letzte 7 Tage, rollierender Schnitt, im Ziel seit', () => {
     const sessions = [
       // KW 48 (23.–29.11.): 2
       sess('a', day(23), 'push'), sess('b', day(24), 'pull'),
@@ -41,9 +41,15 @@ describe('consistency', () => {
     ];
     const c = consistency(sessions, [{ date: '2026-11-24', durationMin: 30 }], 3, 16, NOW);
     expect(c.weeks).toHaveLength(16);
-    expect(c.thisWeek).toBe(2);
-    expect(c.streak).toBe(2); // KW 47 + 46 erreicht, laufende Woche noch nicht
-    expect(c.avg12).toBeCloseTo(7 / 12);
+    // letzte 7 Tage = 19.–25.11.: 20., 23., 24.
+    expect(c.last7).toBe(3);
+    // 28 Tage = 29.10.–25.11.: alle 9 -> 2,25/Woche
+    expect(c.avg4w).toBeCloseTo(9 / 4);
+    expect(c.avg4wPrev).toBe(0);
+    expect(c.inGoalWeeks).toBe(0); // Ziel 3 nicht erreicht
+    const c2 = consistency(sessions, [], 2, 16, NOW);
+    // Schnitt am 25.11. (2,25) und 18.11. (7 von 22.10.–18.11. -> 1,75)
+    expect(c2.inGoalWeeks).toBe(1);
     const cur = c.weeks.at(-1)!;
     expect(cur.current).toBe(true);
     expect(cur.days[1]).toMatchObject({ date: '2026-11-24', splits: ['pull'], cardioMin: 30, future: false });

@@ -93,9 +93,14 @@ export interface WeekCol {
 }
 export interface Consistency {
   weeks: WeekCol[];
-  thisWeek: number;
-  streak: number;
-  avg12: number;
+  /** Trainings in den letzten 7 Tagen (inkl. heute) */
+  last7: number;
+  /** Ø Trainings pro Woche, rollierend über die letzten 28 Tage */
+  avg4w: number;
+  /** dasselbe für die 28 Tage davor (Trend) */
+  avg4wPrev: number;
+  /** Seit wie vielen Wochen liegt der rollierende 4-Wochen-Schnitt durchgehend auf/über dem Ziel? */
+  inGoalWeeks: number;
   goal: number;
 }
 
@@ -127,18 +132,22 @@ export function consistency(sessions: DSession[], cardio: DCardio[], goal: numbe
     cols.push({ start, days, sessions: n, goalMet: n >= goal, current: start === cur });
   }
 
-  // Serie: zusammenhängende Wochen mit erreichtem Ziel, rückwärts ab letzter abgeschlossener Woche
-  // (die laufende Woche zählt mit, sobald das Ziel schon erreicht ist).
-  const countIn = (start: number) => sessions.filter((s) => weekStart(s.startedAt) === start).length;
-  let streak = countIn(cur) >= goal ? 1 : 0;
-  for (let w = addWeeks(cur, -1); countIn(w) >= goal; w = addWeeks(w, -1)) streak++;
+  // Rollierende Fenster (Tage, heute inklusive) – unabhängig von Kalenderwochen
+  const starts = sessions.map((x) => startOfDay(x.startedAt));
+  const countDays = (lastDay: number, days: number) => {
+    const from = addDays(lastDay, -(days - 1));
+    return starts.filter((t) => t >= from && t <= lastDay).length;
+  };
+  const avgAt = (lastDay: number) => countDays(lastDay, 28) / 4;
+  let inGoalWeeks = 0;
+  while (inGoalWeeks < 104 && avgAt(addDays(today, -7 * inGoalWeeks)) >= goal) inGoalWeeks++;
 
-  const last12 = Array.from({ length: 12 }, (_, i) => countIn(addWeeks(cur, -(i + 1))));
   return {
     weeks: cols,
-    thisWeek: countIn(cur),
-    streak,
-    avg12: last12.reduce((a, b) => a + b, 0) / 12,
+    last7: countDays(today, 7),
+    avg4w: avgAt(today),
+    avg4wPrev: avgAt(addDays(today, -28)),
+    inGoalWeeks,
     goal,
   };
 }

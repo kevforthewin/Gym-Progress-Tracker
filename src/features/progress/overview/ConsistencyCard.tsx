@@ -45,9 +45,18 @@ export function ConsistencyCard({ data }: { data: DashboardData }) {
       </div>
 
       <dl className="flex justify-between rounded-lg bg-slate-50 px-3 py-1.5 text-center dark:bg-slate-900/50">
-        <Stat label="diese Woche" value={`${c.thisWeek}/${c.goal}`} good={c.thisWeek >= c.goal} />
-        <Stat label={c.streak === 1 ? 'Woche in Folge' : 'Wochen in Folge'} value={String(c.streak)} />
-        <Stat label="Ø/Woche (12 W.)" value={fmtNumber(c.avg12, 1)} />
+        <Stat label="letzte 7 Tage" value={`${c.last7}/${c.goal}`} good={c.last7 >= c.goal} />
+        <Stat
+          label="Ø/Woche (4 W.)"
+          value={fmtNumber(c.avg4w, 1)}
+          good={c.avg4w >= c.goal}
+          trend={c.avg4w - c.avg4wPrev}
+        />
+        <Stat
+          label={c.inGoalWeeks ? (c.inGoalWeeks === 1 ? 'Woche im Ziel' : 'Wochen im Ziel') : 'unter Ziel'}
+          value={c.inGoalWeeks ? String(c.inGoalWeeks) : '–'}
+          good={c.inGoalWeeks > 0}
+        />
       </dl>
 
       <div className="grid gap-[3px]" style={{ gridTemplateColumns: '2.4rem repeat(7, minmax(0, 1fr)) 2.4rem' }}>
@@ -132,10 +141,19 @@ export function ConsistencyCard({ data }: { data: DashboardData }) {
   );
 }
 
-function Stat({ label, value, good }: { label: string; value: string; good?: boolean }) {
+function Stat({ label, value, good, trend }: { label: string; value: string; good?: boolean; trend?: number }) {
+  const t = trend !== undefined && Math.abs(trend) >= 0.05 ? trend : undefined;
   return (
     <div>
-      <dd className={`text-base font-bold tabular-nums ${good ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>{value}</dd>
+      <dd className={`text-base font-bold tabular-nums ${good ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
+        {value}
+        {t !== undefined && (
+          <span className="ml-1 text-[11px] font-semibold text-slate-500" title="vs. die 4 Wochen davor">
+            {t > 0 ? '▲' : '▼'} {t > 0 ? '+' : '−'}
+            {fmtNumber(Math.abs(t), 1)}
+          </span>
+        )}
+      </dd>
       <dt className="text-[10px] text-slate-500">{label}</dt>
     </div>
   );
