@@ -10,6 +10,8 @@ export const ALL_GYMS_COLOR = '#d55181';
 
 /** Farben (Dataviz-Palette, Dark-Stufen, gegen die Kartenfarbe validiert). */
 export const SPLIT_COLOR = { push: '#3987e5', pull: '#d95926', legs: '#199e70', other: '#64748b' } as const;
+/** Cardio-Tage im Kalender (Gold – geprüft gegen Push/Pull/Legs, auch bei Farbsehschwäche unterscheidbar) */
+export const CARDIO_COLOR = '#d4a72c';
 export const GYM_COLORS = ['#9085e9', '#c98500'];
 export const STATUS = { hit: '#0ca30c', miss: '#d03b3b' } as const;
 

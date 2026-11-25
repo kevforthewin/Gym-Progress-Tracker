@@ -5,7 +5,7 @@ import { consistency, SPLIT_LABEL, type DayCell, type Split } from '../../../dom
 import { isoWeek } from '../../../domain/insights';
 import { fmtNumber } from '../../../domain/units';
 import { Card } from '../../../components/ui';
-import { SPLIT_COLOR, type DashboardData } from './useDashboardData';
+import { CARDIO_COLOR, SPLIT_COLOR, type DashboardData } from './useDashboardData';
 
 const WEEKS = 6;
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -15,6 +15,7 @@ function cellStyle(c: DayCell): React.CSSProperties {
   const colors = c.splits.map((s) => SPLIT_COLOR[s]);
   if (colors.length === 1) return { background: colors[0] };
   if (colors.length > 1) return { background: `linear-gradient(135deg, ${colors[0]} 50%, ${colors[1]} 50%)` };
+  if (c.cardioMin > 0) return { background: CARDIO_COLOR };
   return {};
 }
 
@@ -83,14 +84,22 @@ export function ConsistencyCard({ data }: { data: DashboardData }) {
                   onClick={() => setSel(isSel ? null : cell)}
                   aria-label={`${DATE_FMT.format(cell.ts)}${trained ? `: ${cell.splits.map((s) => SPLIT_LABEL[s]).join(', ')}` : ''}${cell.cardioMin ? `, Cardio ${cell.cardioMin} min` : ''}`}
                   className={`relative h-7 rounded-[4px] text-[10px] tabular-nums ${
-                    trained ? 'font-semibold text-white' : cell.future ? 'text-slate-600' : 'bg-slate-500/15 text-slate-500'
-                  } ${!trained && cell.cardioMin ? 'ring-[1.5px] ring-inset ring-slate-400' : ''} ${
+                    trained
+                      ? 'font-semibold text-white'
+                      : cell.cardioMin
+                        ? 'font-semibold text-slate-900'
+                        : cell.future
+                          ? 'text-slate-600'
+                          : 'bg-slate-500/15 text-slate-500'
+                  } ${
                     isSel ? 'outline outline-2 outline-offset-1 outline-slate-100' : isToday ? 'outline outline-1 outline-offset-1 outline-slate-400' : ''
                   }`}
                   style={cellStyle(cell)}
                 >
                   {new Date(cell.ts).getDate()}
-                  {trained && cell.cardioMin > 0 && <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-white/90" />}
+                  {trained && cell.cardioMin > 0 && (
+                    <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full ring-1 ring-slate-900/60" style={{ background: CARDIO_COLOR }} />
+                  )}
                 </button>
               );
             })}
@@ -131,8 +140,8 @@ export function ConsistencyCard({ data }: { data: DashboardData }) {
         ))}
         {anyCardio && (
           <li className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-[2px] ring-[1.5px] ring-inset ring-slate-400" />
-            Cardio (• mit Training)
+            <span className="h-2.5 w-2.5 rounded-[2px]" style={{ background: CARDIO_COLOR }} />
+            Cardio
           </li>
         )}
         <li className="ml-auto">Tag antippen</li>
